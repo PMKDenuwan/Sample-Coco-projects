@@ -1,0 +1,119 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoconutGuard SL</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="glass-nav">
+        <div class="nav-container">
+            <div class="logo">CoconutGuard</div>
+            <ul class="nav-links">
+                <li><a href="#detection">Disease Detection</a></li>
+                <li><a href="#appointment">Appointments</a></li>
+                <li><a href="#map">Disease Map</a></li>
+                <li><a href="#knowledge">Knowledge Center</a></li>
+            </ul>
+            <div class="nav-actions">
+                <button class="lang-toggle">සිංහල</button>
+                <div class="user-icon"><i class="fas fa-user"></i></div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <h1>Protect Your Coconut Trees with AI-Powered Detection</h1>
+            <p>Quick diagnosis, expert support, and pandemic management for Sri Lankan farmers</p>
+            <div class="cta-container">
+                <button class="cta-primary"><i class="fas fa-camera"></i> Detect Disease Now</button>
+                <button class="cta-secondary"><i class="fas fa-calendar-alt"></i> Schedule CT Visit</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Actions -->
+    <section class="quick-actions">
+        <div class="action-card glass-card">
+            <i class="fas fa-diagnoses"></i>
+            <h3>Instant AI Diagnosis</h3>
+            <p>Upload photos of leaves or trunk for immediate analysis</p>
+        </div>
+        <div class="action-card glass-card">
+            <i class="fas fa-user-tie"></i>
+            <h3>Expert Appointments</h3>
+            <p>Schedule certified CT officer visits</p>
+        </div>
+        <div class="action-card glass-card">
+            <i class="fas fa-comments"></i>
+            <h3>24/7 Support Chat</h3>
+            <p>Get answers to your coconut queries</p>
+        </div>
+    </section>
+
+    <!-- Disease Map -->
+    <section class="disease-map">
+        <h2>Live Disease Spread Map</h2>
+        <div class="map-container glass-card">
+            <div class="map-legend">
+                <div class="legend-item"><span class="low-risk"></span> Low Risk</div>
+                <div class="legend-item"><span class="medium-risk"></span> Medium Risk</div>
+                <div class="legend-item"><span class="high-risk"></span> High Risk</div>
+            </div>
+            <div class="map-placeholder"></div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="how-it-works">
+        <h2>Simple Process for Farmers</h2>
+        <div class="process-steps">
+            <div class="step glass-card">
+                <div class="step-number">1</div>
+                <h3>Upload or Schedule</h3>
+                <p>Take photos or book appointment</p>
+            </div>
+            <div class="step glass-card">
+                <div class="step-number">2</div>
+                <h3>Get Diagnosis</h3>
+                <p>Receive AI analysis or expert visit</p>
+            </div>
+            <div class="step glass-card">
+                <div class="step-number">3</div>
+                <h3>Take Action</h3>
+                <p>Implement solutions or certification</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Chatbot -->
+    <div class="chatbot-container">
+        <div class="chatbot-toggle">
+            <i class="fas fa-comment-dots"></i>
+        </div>
+        <div class="chatbot-window glass-card">
+            <div class="chat-header">
+                <h4>Coconut Care Assistant</h4>
+                <button class="close-chat">&times;</button>
+            </div>
+            <div class="chat-body">
+                <p>How can I help you today?</p>
+                <div class="quick-questions">
+                    <button class="chat-question">Identify disease symptoms</button>
+                    <button class="chat-question">Pandemic guidelines</button>
+                    <button class="chat-question">Contact CT officer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

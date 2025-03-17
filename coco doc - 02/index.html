@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coconut Disease Detection System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav>
+        <div class="logo">
+            <img src="logo.png" alt="Coconut Disease Detection Logo">
+            <span>Coconut Disease Detection</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="#disease-detection">Disease Detection</a></li>
+            <li><a href="#appointment">Book CT Officer</a></li>
+            <li><a href="#disease-map">Disease Map</a></li>
+            <li><a href="#chatbot">Chatbot</a></li>
+        </ul>
+        <div class="language-selector">
+            <select>
+                <option value="en">English</option>
+                <option value="si">Sinhala</option>
+                <option value="ta">Tamil</option>
+            </select>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Protect Your Coconut Trees with AI-Powered Disease Detection</h1>
+            <p>Quick diagnosis, expert support, and pandemic management for Sri Lankan coconut farmers.</p>
+            <div class="cta-buttons">
+                <button onclick="openDiseaseDetection()">Detect Disease Now</button>
+                <button onclick="openAppointmentBooking()">Schedule CT Officer Visit</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Action Cards -->
+    <section class="quick-actions">
+        <div class="card" onclick="openDiseaseDetection()">
+            <img src="detect-icon.png" alt="Detect Disease">
+            <h3>Detect Disease</h3>
+            <p>Upload leaf/trunk photos and get instant AI diagnosis.</p>
+        </div>
+        <div class="card" onclick="openAppointmentBooking()">
+            <img src="book-icon.png" alt="Book CT Officer">
+            <h3>Book CT Officer</h3>
+            <p>Schedule an official visit for pandemic disease certification.</p>
+        </div>
+        <div class="card" onclick="openChatbot()">
+            <img src="chat-icon.png" alt="Get Help">
+            <h3>Get Help</h3>
+            <p>Access the AI chatbot for immediate answers about coconut diseases.</p>
+        </div>
+    </section>
+
+    <!-- Disease Map Section -->
+    <section class="disease-map">
+        <h2>Interactive Disease Map</h2>
+        <div id="map">
+            <!-- Map will be dynamically updated using JavaScript -->
+        </div>
+        <button onclick="viewFullMap()">View Full Map</button>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2023 Coconut Disease Detection System</p>
+        <p>Contact Support: support@coconutdisease.lk</p>
+        <p>Partners: Coconut Development Board</p>
+    </footer>
+
+    <!-- Chatbot Integration -->
+    <div class="chatbot-icon" onclick="openChatbot()">
+        <img src="chat-icon.png" alt="Chatbot">
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

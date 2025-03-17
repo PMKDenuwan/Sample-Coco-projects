@@ -1,0 +1,108 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coconut Care Sri Lanka</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="language-toggle">
+            <button>සිංහල</button>
+            <button>தமிழ்</button>
+            <button>English</button>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Protect Your Coconut Crops</h1>
+            <div class="cta-buttons">
+                <button class="cta">
+                    <i class="fas fa-camera"></i>
+                    Scan Disease
+                </button>
+                <button class="cta">
+                    <i class="fas fa-calendar-check"></i>
+                    Book Inspection
+                </button>
+                <button class="cta">
+                    <i class="fas fa-comments"></i>
+                    Ask Chatbot
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section class="features">
+        <div class="feature-card">
+            <i class="fas fa-leaf"></i>
+            <h3>AI Disease Detection</h3>
+            <p>Upload photos of your tree for instant diagnosis</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-shield-alt"></i>
+            <h3>Pandemic Control</h3>
+            <p>Book certified officers for inspections</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-map-marked-alt"></i>
+            <h3>Live Risk Map</h3>
+            <p>Check disease spread in your area</p>
+        </div>
+    </section>
+
+    <!-- Risk Map Section -->
+    <section class="risk-map">
+        <h2>Current Disease Spread</h2>
+        <div class="map-container" id="riskMap">
+            <!-- Map visualization would be implemented here -->
+            <div class="map-legend">
+                <div><span class="dot low-risk"></span> Low Risk</div>
+                <div><span class="dot medium-risk"></span> Medium Risk</div>
+                <div><span class="dot high-risk"></span> High Risk</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats">
+        <div class="stat-card">
+            <h4>Total Inspections</h4>
+            <p class="stat-number">1,250</p>
+        </div>
+        <div class="stat-card">
+            <h4>Diseases Detected</h4>
+            <p class="stat-number">320</p>
+        </div>
+        <div class="stat-card">
+            <h4>Certificates Issued</h4>
+            <p class="stat-number">95</p>
+        </div>
+    </section>
+
+    <!-- Chatbot -->
+    <div class="chatbot-container">
+        <button class="chatbot-toggle" id="chatbotToggle">
+            <i class="fas fa-comment-dots"></i>
+        </button>
+        <div class="chatbot-window" id="chatbotWindow">
+            <div class="chat-header">
+                <h3>Coconut Care Bot</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="chat-content" id="chatContent">
+                <!-- Chat messages would go here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
