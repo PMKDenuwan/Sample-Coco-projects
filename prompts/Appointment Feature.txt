@@ -1,0 +1,1172 @@
+
+I give you all the backend files  & frontend files related this.First I need to make sure backend business logic  error free.(Currently its not working for at least create. )
+If there any error please resolve it  and give clearly completed updated full codes.
+ After make sure backend business logic is working properly then checks frontend files.
+
+
+Backend
+|->appointment.controller.js
+|->appointment.model.js
+|->appointment.routes.js
+
+appointment.controller.js
+const Appointment = require('../models/appointments.model');
+const errorHandler = require('../utils/error');
+
+const createAppointment = async (req, res, next) => {
+  try {
+    const { fullName, province, district, address, extent, extentUnit, numberOfPlants, numberOfPlantsAffected, email, phone, message, userId } = req.body;
+    
+    // Get file paths from uploaded files
+    const photos = req.files.map(file => file.path);
+
+    if (!fullName || !province || !district || !address || !extent || !extentUnit || !numberOfPlants || !numberOfPlantsAffected || !email || !phone || !message || !photos || !userId) {
+      return next(errorHandler(400, 'Please fill out all the fields'));
+    }
+
+    const percentageAffected = (numberOfPlantsAffected / numberOfPlants) * 100;
+
+    function riskAssessment(percentageAffected) {
+    if (percentageAffected > 40) {
+        return "High";
+    } else if (percentageAffected > 15) {
+        return "Medium";
+    } else {
+        return "Low";
+    }
+}
+
+    const newAppointment = await Appointment({
+      fullName,
+      province,
+      district,
+      address,
+      extent,
+      extentUnit,
+      numberOfPlants,
+      numberOfPlantsAffected,
+      email,
+      phone,
+      message,
+      photos,
+      percentageAffected,
+      userId
+    });
+
+    const savedAppointment = await newAppointment.save();
+    res.status(201).json({ message: 'Appointment created', savedAppointment });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+const getAppointment = async (req, res, next) => {
+  try {
+    const sortDirection = req.query.order === 'asc' ? 1 : -1;
+    const query = {};
+
+    if (req.query.fullName) {
+      query.fullName = req.query.fullName;
+    }
+
+    if (req.query.appointmentId) {
+      query._id = req.query.appointmentId;
+    }
+
+    if (req.query.userId) {
+      query.userId = req.query.userId;
+    }
+
+    const totalAppointments = await Appointment.countDocuments();
+    const appointment = await Appointment.find(query).sort({ updatedAt: sortDirection });
+    res.status(200).json({ appointment, totalAppointments });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateAppointment = async (req, res, next) => {
+  try {
+    const { status, responseMessage, scheduledDate, scheduledTime } = req.body;
+
+    // Validate admin inputs
+    if (status === 'successful') {
+      if (!scheduledDate || !scheduledTime || !responseMessage) {
+        return next(errorHandler(400, 'Scheduled date, time and response message are required for approval'));
+      }
+    }
+
+    const updateFields = {
+      status,
+      ...(status === 'successful' && { 
+        responseMessage,
+        scheduledDate: new Date(scheduledDate),
+        scheduledTime 
+      })
+    };
+
+    const updatedAppointment = await Appointment.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateFields },
+      { new: true }
+    );
+
+    res.status(200).json({ message: 'Updated successfully', updatedAppointment });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteAppointment = async (req, res, next) => {
+  try {
+    await Appointment.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: 'Appointment has been deleted' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { createAppointment, getAppointment, updateAppointment, deleteAppointment };
+
+appointment.model.js
+const mongoose = require('mongoose');
+
+const appointmentSchema = new mongoose.Schema({
+  fullName: { type: String, required: true },
+  province: { type: String, required: true },
+  district: { type: String, required: true },
+  address: { type: String, required: true },
+  extent: { type: Number, required: true },
+  extentUnit: { type: String, required: true },
+  numberOfPlants: { type: Number, required: true },
+  numberOfPlantsAffected: { type: Number, required: true },
+  email: { type: String, required: true },
+  phone: { type: String, required: true },
+  message: { type: String, required: true },
+  photos: { type: [String], required: true },
+  percentageAffected: { type: Number, required: true },
+  status: { 
+    type: String, 
+    enum: ['pending', 'successful'], 
+    default: 'pending' 
+  },
+  responseMessage: String,
+  scheduledDate: Date,
+  scheduledTime: String,
+  // Add riskAssessment field
+  riskAssessment: {
+    type: String,
+    enum: ['Low', 'Medium', 'High'],
+    required: true
+  },
+  userId: { type: String, required: true }
+}, { timestamps: true });
+
+const Appointments = mongoose.model('Appointments', appointmentSchema);
+module.exports = Appointments;
+
+appointment.route.js
+const express = require('express')
+const multer = require('multer');
+const { createAppointment, getAppointment, updateAppointment, deleteAppointment } = require('../controllers/appointments.controller')
+
+const router = express.Router()
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, 'uploads/'); // Save files in the 'uploads' folder
+    },
+    filename: function (req, file, cb) {
+      cb(null, Date.now() + '-' + file.originalname); // Rename files to avoid conflicts
+    }
+});
+  
+const upload = multer({ storage: storage });
+  
+// Use multer middleware for handling file uploads
+router.post('/', upload.array('photos', 5), createAppointment); 
+router.get('/', getAppointment)   //get total count
+router.put('/:id', updateAppointment)  //change appointment status
+router.delete('/:id', deleteAppointment)
+
+module.exports = router;
+
+server.js
+const express = require('express');
+const multer = require('multer');
+const cors = require('cors');
+const nodemailer = require('nodemailer');
+const mongoose = require('mongoose'); // Add mongoose for MongoDB
+require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+
+// Create the 'uploads' folder if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/'); // Save files in the 'uploads' folder
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname); // Rename files to avoid conflicts
+  },
+});
+const upload = multer({ storage: storage });
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('Connected to MongoDB'))
+  .catch((err) => console.error('Error connecting to MongoDB:', err));
+
+// Import the Appointment model
+const Appointment = require('./models/appointments.model');
+
+// Email sending route
+app.post('/api/send-email', (req, res) => {
+  const { to, subject, text } = req.body;
+
+  const transporter = nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      return res.status(500).send('Error sending email');
+    }
+    res.status(200).send('Email sent successfully');
+  });
+});
+
+// Appointment creation route with file upload
+app.post('/api/appointment', upload.array('photos', 3), async (req, res) => {
+  try {
+    const {
+      fullName,
+      province,
+      district,
+      address,
+      extent,
+      extentUnit,
+      numberOfPlants,
+      numberOfPlantsAffected,
+      email,
+      phone,
+      message,
+      userId,
+    } = req.body;
+
+    // Get file paths from uploaded files
+    const photos = req.files.map((file) => file.path);
+
+    // Validate required fields
+    if (
+      !fullName ||
+      !province ||
+      !district ||
+      !address ||
+      !extent ||
+      !extentUnit ||
+      !numberOfPlants ||
+      !numberOfPlantsAffected ||
+      !email ||
+      !phone ||
+      !message ||
+      !photos ||
+      !userId
+    ) {
+      return res.status(400).json({ message: 'Please fill out all the fields' });
+    }
+
+    // Calculate percentage of affected plants
+    const percentageAffected = (numberOfPlantsAffected / numberOfPlants) * 100;
+
+    // Create a new appointment
+    const newAppointment = new Appointment({
+      fullName,
+      province,
+      district,
+      address,
+      extent,
+      extentUnit,
+      numberOfPlants,
+      numberOfPlantsAffected,
+      email,
+      phone,
+      message,
+      photos,
+      percentageAffected,
+      userId,
+    });
+
+    // Save the appointment to the database
+    const savedAppointment = await newAppointment.save();
+
+    // Send success response
+    res.status(201).json({ message: 'Appointment created', savedAppointment });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+
+index.js
+import express from 'express';
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import bodyParser from 'body-parser';
+
+// Load environment variables
+dotenv.config();
+
+// Debug: Check if MONGODB_CONNECTION is loading correctly
+console.log("MongoDB Connection String:", process.env.MONGODB_CONNECTION);
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_CONNECTION, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log('✅ Database connected successfully...'))
+.catch((err) => {
+    console.error("❌ MongoDB Connection Error:", err);
+    process.exit(1);  // Exit the process if MongoDB connection fails
+});
+
+// Initialize Express
+const app = express();
+
+// Middleware
+app.use(cors());  // Enable CORS
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Routes
+import reportRouter from './routes/report.route.js'; // Use ES Modules import
+import appointmentRouter from './routes/appointments.route.js'; // Use ES Modules import
+import authRouter from './routes/auth.route.js'; // Use ES Modules import
+import locationRouter from './routes/location.route.js'; // Use ES Modules import
+
+app.get('/', (req, res) => {
+    res.send('Backend is running!');
+});
+
+app.use('/api/reports', reportRouter);
+app.use('/api/appointment', appointmentRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/location', locationRouter);
+
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+    const statusCode = err.statusCode || 500;
+    const message = err.message || 'Internal server error';
+    res.status(statusCode).json({
+        success: false,
+        statusCode,
+        message
+    });
+});
+
+console.log('Report Router:', reportRouter);
+console.log('Location Router:', locationRouter);
+console.log('Auth Router:', authRouter);
+console.log('Appointment Router:', appointmentRouter);
+
+// Start the Server
+const PORT = process.env.PORT || 5005;
+app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+});
+
+
+frontend
+|->Appointment.jsx
+|->Profile.jsx
+
+Appointment.jsx
+import React, { useState, useEffect } from 'react';
+import { Button, TextInput, Label, Textarea, Alert, Select, Card, Spinner } from 'flowbite-react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { FaArrowRight, FaMapMarkerAlt, FaUser, FaPhone, FaEnvelope, FaTree, FaExclamationTriangle, FaLeaf, FaImage, FaTimes } from 'react-icons/fa';
+import { useSelector } from 'react-redux';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+const provinces = {
+  "Central Province": ["Kandy", "Matale", "Nuwara Eliya"],
+  "Eastern Province": ["Ampara", "Batticaloa", "Trincomalee"],
+  "Northern Province": ["Jaffna", "Kilinochchi", "Mannar", "Mullaitivu", "Vavuniya"],
+  "Southern Province": ["Galle", "Hambantota", "Matara"],
+  "Western Province": ["Colombo", "Gampaha", "Kalutara"],
+  "North Central Province": ["Anuradhapura", "Polonnaruwa"],
+  "North Western Province": ["Kurunegala", "Puttalam"],
+  "Sabaragamuwa Province": ["Kegalle", "Ratnapura"],
+  "Uva Province": ["Badulla", "Monaragala"]
+};
+
+export default function Appointment() {
+  const [formData, setFormData] = useState({
+    fullName: '',
+    province: '',
+    district: '',
+    address: '',
+    extent: '',
+    extentUnit: 'Acres',
+    numberOfPlants: '',
+    numberOfPlantsAffected: '',
+    email: '',
+    phone: '',
+    message: '',
+    photos: []
+  });
+  
+  const [errors, setErrors] = useState({});
+  const [districts, setDistricts] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState([]);
+  const navigate = useNavigate();
+  const { currentUser } = useSelector((state) => state.user);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleData, setScheduleData] = useState({
+    date: null,
+    time: '',
+    message: ''
+  });
+
+
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    let newValue = value;
+
+    switch(name) {
+      case 'fullName':
+        newValue = value.replace(/[^A-Za-z\s]/g, '');
+        break;
+      case 'phone':
+        newValue = value.replace(/\D/g, '').slice(0, 10);
+        break;
+      case 'extent':
+      case 'numberOfPlants':
+      case 'numberOfPlantsAffected':
+        newValue = value.replace(/\D/g, '');
+        if (newValue === '0') newValue = '';
+        break;
+    }
+
+    setFormData(prev => ({ ...prev, [name]: newValue }));
+    
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleProvinceChange = (e) => {
+    const province = e.target.value;
+    setFormData(prev => ({ ...prev, province, district: '' }));
+    setDistricts(provinces[province] || []);
+  };
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    const remainingSlots = 3 - formData.photos.length;
+    const newFiles = files.slice(0, remainingSlots);
+    const updatedFiles = [...formData.photos, ...newFiles];
+    
+    setFormData(prev => ({ ...prev, photos: updatedFiles }));
+    
+    const newPreviews = newFiles.map(file => URL.createObjectURL(file));
+    setPhotoPreview(prev => [...prev, ...newPreviews]);
+  };
+
+  const removePhoto = (index) => {
+    const newPhotos = [...formData.photos];
+    const newPreviews = [...photoPreview];
+    
+    newPhotos.splice(index, 1);
+    newPreviews.splice(index, 1);
+    
+    URL.revokeObjectURL(photoPreview[index]);
+    setFormData(prev => ({ ...prev, photos: newPhotos }));
+    setPhotoPreview(newPreviews);
+  };
+
+  useEffect(() => {
+    return () => {
+      photoPreview.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [photoPreview]);
+
+  const validateForm = () => {
+    const newErrors = {};
+    let isValid = true;
+
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'Please enter your full name';
+      isValid = false;
+    }
+
+    if (!/^\d{10}$/.test(formData.phone)) {
+      newErrors.phone = 'Phone number must be 10 digits';
+      isValid = false;
+      alert('Phone number must be exactly 10 digits');
+    }
+
+    if (!formData.extent || parseInt(formData.extent) <= 0) {
+      newErrors.extent = 'Please enter a valid land extent';
+      isValid = false;
+    }
+
+    if (!formData.numberOfPlants || parseInt(formData.numberOfPlants) <= 0) {
+      newErrors.numberOfPlants = 'Please enter a valid number of plants';
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    const percentageAffected = (formData.numberOfPlantsAffected / formData.numberOfPlants) * 100;
+
+
+    const formDataToSend = new FormData();
+    Object.entries(formData).forEach(([key, value]) => {
+      if (key !== 'photos') formDataToSend.append(key, value);
+    });
+    
+    formData.photos.forEach(photo => formDataToSend.append('photos', photo));
+    formDataToSend.append('userId', currentUser._id);
+
+    try {
+      await axios.post('/api/appointment', formDataToSend, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      toast.success(
+        <div>
+          <p className="font-semibold mb-2">Appointment Request Submitted!</p>
+          <p>We've received your details about the {percentageAffected.toFixed(1)}% disease-affected plants.</p>
+          <p className="mt-2">Our team will contact you soon to schedule a visit.</p>
+        </div>,
+        { position: 'top-center', autoClose: 8000 }
+      );
+
+      setTimeout(() => navigate('/'), 5000);
+    } catch (error) {
+      toast.error('Something went wrong. Please try again later.', { position: 'top-right' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Modified handleStatusUpdate function
+const handleStatusUpdate = async (id, newStatus) => {
+  try {
+    if (newStatus === 'successful') {
+      // Validate schedule data before submission
+      if (!scheduleData.date || !scheduleData.time || !scheduleData.message) {
+        Swal.fire("Error!", "Please fill all scheduling details", "error");
+        return;
+      }
+      
+      const appointmentUpdate = {
+        status: newStatus,
+        responseMessage: scheduleData.message,
+        scheduledDate: scheduleData.date,
+        scheduledTime: scheduleData.time
+      };
+
+      const { data } = await axios.put(`/api/appointment/${id}`, appointmentUpdate);
+      
+      // Update local state with new data
+      setAppointments(prev => prev.map(app => 
+        app._id === id ? { ...app, ...data } : app
+      ));
+
+      // Reset schedule data
+      setScheduleData({
+        date: null,
+        time: '',
+        message: ''
+      });
+    } else {
+      await axios.put(`/api/appointment/${id}`, { status: newStatus });
+    }
+
+    // Stats update logic remains the same
+    Swal.fire("Updated!", "Appointment has been updated", "success");
+  } catch (error) {
+    Swal.fire("Error!", error.response?.data?.message || "Update failed", "error");
+   }
+  };
+
+  
+
+  return (
+    <div className="p-4 max-w-4xl mx-auto min-h-screen">
+      <Card className="shadow-lg">
+        <div className="flex flex-col items-center mb-6">
+          <div className="bg-green-100 p-3 rounded-full mb-4">
+            <FaLeaf className="text-green-500 text-3xl" />
+          </div>
+          <h1 className="text-center text-3xl font-bold text-green-700">Request a Field Visit</h1>
+          <p className="text-gray-600 mt-2 text-center">
+            Fill out the form below to request a visit from our agricultural experts
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Personal Information Section */}
+            <div className="space-y-6 col-span-2">
+              <h2 className="text-xl font-semibold text-gray-700 flex items-center">
+                <FaUser className="mr-2 text-green-600" /> Personal Information
+              </h2>
+              <div className="border-b border-gray-200 pb-2"></div>
+            </div>
+
+            <div>
+              <Label htmlFor="fullName" value="Full Name" className="flex items-center">
+                <FaUser className="mr-2 text-gray-500 text-sm" /> Full Name
+              </Label>
+              <TextInput
+                id="fullName"
+                type="text"
+                placeholder="Enter your full name"
+                required
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleChange}
+                onKeyPress={(e) => /[0-9]/.test(e.key) && e.preventDefault()}
+                color={errors.fullName ? 'failure' : 'gray'}
+              />
+              {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="email" value="Email" className="flex items-center">
+                <FaEnvelope className="mr-2 text-gray-500 text-sm" /> Email Address
+              </Label>
+              <TextInput
+                id="email"
+                type="email"
+                placeholder="your.email@example.com"
+                required
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                color={errors.email ? 'failure' : 'gray'}
+                className="mt-1"
+              />
+              {errors.email && (
+                <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+              )}
+            </div>
+
+            {/* Phone Number Field */}
+            <div>
+              <Label htmlFor="phone" value="Phone Number" className="flex items-center">
+                <FaPhone className="mr-2 text-gray-500 text-sm" /> Phone Number
+              </Label>
+              <TextInput
+                id="phone"
+                type="tel"
+                placeholder="10-digit phone number"
+                required
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                onKeyPress={(e) => /\D/.test(e.key) && e.preventDefault()}
+                color={errors.phone ? 'failure' : 'gray'}
+              />
+              {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
+            </div>
+
+             {/* Location Information Section */}
+             <div className="space-y-6 col-span-2 mt-6">
+              <h2 className="text-xl font-semibold text-gray-700 flex items-center">
+                <FaMapMarkerAlt className="mr-2 text-green-600" /> Location Details
+              </h2>
+              <div className="border-b border-gray-200 pb-2"></div>
+            </div>
+            
+            <div>
+              <Label htmlFor="province" value="Province" className="flex items-center">
+                <FaMapMarkerAlt className="mr-2 text-gray-500 text-sm" /> Province
+              </Label>
+              <Select 
+                id="province"
+                name="province" 
+                required 
+                value={formData.province}
+                onChange={handleProvinceChange}
+                color={errors.province ? 'failure' : 'gray'}
+                className="mt-1"
+              >
+                <option value="">Select Province</option>
+                {Object.keys(provinces).map((province) => (
+                  <option key={province} value={province}>{province}</option>
+                ))}
+              </Select>
+              {errors.province && (
+                <p className="text-red-500 text-sm mt-1">{errors.province}</p>
+              )}
+            </div>
+            
+            <div>
+              <Label htmlFor="district" value="District" className="flex items-center">
+                <FaMapMarkerAlt className="mr-2 text-gray-500 text-sm" /> District
+              </Label>
+              <Select 
+                id="district"
+                name="district" 
+                required 
+                disabled={!formData.province} 
+                value={formData.district} 
+                onChange={handleChange}
+                color={errors.district ? 'failure' : 'gray'}
+                className="mt-1"
+              >
+                <option value="">Select District</option>
+                {districts.map((district) => (
+                  <option key={district} value={district}>{district}</option>
+                ))}
+              </Select>
+              {errors.district && (
+                <p className="text-red-500 text-sm mt-1">{errors.district}</p>
+              )}
+            </div>
+            
+            <div className="col-span-2">
+              <Label htmlFor="address" value="Address" className="flex items-center">
+                <FaMapMarkerAlt className="mr-2 text-gray-500 text-sm" /> Full Address
+              </Label>
+              <Textarea 
+                id="address"
+                name="address" 
+                placeholder="Enter your complete address"
+                required 
+                value={formData.address}
+                onChange={handleChange}
+                color={errors.address ? 'failure' : 'gray'}
+                className="mt-1"
+                rows={3}
+              />
+              {errors.address && (
+                <p className="text-red-500 text-sm mt-1">{errors.address}</p>
+              )}
+            </div>
+            
+
+            {/* Land Extent Field */}
+            <div>
+              <Label htmlFor="extent" value="Land Extent" className="flex items-center">
+                <FaTree className="mr-2 text-gray-500 text-sm" /> Land Extent
+              </Label>
+              <div className="flex gap-2 mt-1">
+                <TextInput
+                  id="extent"
+                  type="number"
+                  placeholder="Area"
+                  required
+                  name="extent"
+                  value={formData.extent}
+                  onChange={handleChange}
+                  onKeyPress={(e) => ['-', 'e', '+', '.'].includes(e.key) && e.preventDefault()}
+                  min="1"
+                  color={errors.extent ? 'failure' : 'gray'}
+                  className="flex-1"
+                />
+                <Select 
+                  name="extentUnit" 
+                  value={formData.extentUnit}
+                  onChange={handleChange}
+                  className="w-1/3"
+                >
+                  <option value="Acres">Acres</option>
+                  <option value="Roods">Roods</option>
+                  <option value="Perches">Perches</option>
+                </Select>
+              </div>
+              {errors.extent && <p className="text-red-500 text-sm mt-1">{errors.extent}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="numberOfPlants" value="Number of Plants" className="flex items-center">
+                <FaTree className="mr-2 text-gray-500 text-sm" /> Total Plants
+              </Label>
+              <TextInput
+                id="numberOfPlants"
+                type="number"
+                placeholder="Total number of plants"
+                required
+                name="numberOfPlants"
+                value={formData.numberOfPlants}
+                onChange={handleChange}
+                onKeyPress={(e) => ['-', 'e', '+', '.'].includes(e.key) && e.preventDefault()}
+                min="1"
+                color={errors.numberOfPlants ? 'failure' : 'gray'}
+                className="mt-1"
+              />
+              {errors.numberOfPlants && (
+                <p className="text-red-500 text-sm mt-1">{errors.numberOfPlants}</p>
+              )}
+            </div>
+            
+            <div>
+              <Label htmlFor="numberOfPlantsAffected" value="Affected Plants" className="flex items-center">
+                <FaExclamationTriangle className="mr-2 text-gray-500 text-sm" /> Affected Plants
+              </Label>
+              <TextInput
+                id="numberOfPlantsAffected"
+                type="number"
+                placeholder="Number of plants affected"
+                required
+                name="numberOfPlantsAffected"
+                value={formData.numberOfPlantsAffected}
+                onChange={handleChange}
+                onKeyPress={(e) => ['-', 'e', '+', '.'].includes(e.key) && e.preventDefault()}
+                min="1"
+                color={errors.numberOfPlantsAffected ? 'failure' : 'gray'}
+                className="mt-1"
+              />
+              {errors.numberOfPlantsAffected && (
+                <p className="text-red-500 text-sm mt-1">{errors.numberOfPlantsAffected}</p>
+              )}
+            </div>
+            
+
+            <div className="col-span-2">
+              <Label htmlFor="message" value="Message" className="flex items-center">
+                <FaLeaf className="mr-2 text-gray-500 text-sm" /> Description of the Problem
+              </Label>
+              <Textarea 
+                id="message"
+                name="message" 
+                placeholder="Please describe the issue you're experiencing with your plants (symptoms, when it started, etc.)"
+                required 
+                value={formData.message}
+                onChange={handleChange}
+                rows={4}
+                className="mt-1"
+              />
+            </div>
+
+            {/* Photo Upload Section */}
+            <div className="col-span-2">
+              <Label htmlFor="photos" value="Photos" className="flex items-center">
+                <FaImage className="mr-2 text-gray-500 text-sm" /> Upload Photos (1-3)
+              </Label>
+              <input
+                id="photos"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileChange}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+              />
+              
+              {photoPreview.length > 0 && (
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+                  {photoPreview.map((url, index) => (
+                    <div key={index} className="relative shrink-0 w-24 h-24 rounded-md overflow-hidden border border-gray-200">
+                      <img src={url} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(index)}
+                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <FaTimes className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-center mt-8">
+            <Button 
+              type="submit" 
+              gradientDuoTone="greenToBlue" 
+              size="lg"
+              disabled={isSubmitting}
+              className="w-full md:w-1/2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Spinner size="sm" className="mr-3" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">Submit Request</span> <FaArrowRight />
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </Card>
+      <ToastContainer />
+    </div>
+  );
+}
+
+Profle.jsx
+
+import React, { useEffect, useState } from 'react';
+import { Card, Badge, Button } from 'flowbite-react';
+import axios from 'axios';
+import { useSelector } from 'react-redux';
+import { FaFileDownload } from 'react-icons/fa';
+import { IoCheckmarkCircleOutline, IoTimeOutline } from 'react-icons/io5';
+import { FiUser, FiPhone, FiBriefcase, FiMessageSquare, FiCalendar, FiClock, FiHome } from 'react-icons/fi';
+import JsPDF from 'jspdf';
+
+export default function Profile() {
+  const [appointments, setAppointments] = useState([]);
+  const { currentUser } = useSelector((state) => state.user);
+
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        const { data } = await axios.get(`/api/appointment?userId=${currentUser._id}`);
+        setAppointments(data.appointment);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchAppointments();
+  }, [currentUser._id]);
+
+  const calculateRiskAssessment = (percentage) => {
+    if (percentage > 40) return 'High';
+    if (percentage > 25) return 'Medium';
+    return 'Low';
+  };
+
+  const generatePDF = (appointment) => {
+    const pdf = new JsPDF();
+    
+    // PDF Content
+    pdf.setFontSize(18);
+    pdf.text('Appointment Confirmation', 20, 20);
+    
+    // Add actual appointment details
+    pdf.setFontSize(12);
+    pdf.text(`Name: ${appointment.fullName}`, 20, 30);
+    pdf.text(`Scheduled Date: ${new Date(appointment.scheduledDate).toLocaleDateString()}`, 20, 40);
+    pdf.text(`Scheduled Time: ${appointment.scheduledTime}`, 20, 50);
+    pdf.text(`Officer Message: ${appointment.responseMessage}`, 20, 60);
+    
+    pdf.save(`appointment-confirmation-${appointment._id}.pdf`);
+  };
+
+  return (
+    <div className="mx-auto max-w-4xl p-4">
+      <h1 className="text-3xl font-bold text-gray-800 mb-8 flex items-center">
+        <FiCalendar className="mr-2 text-blue-600" />
+        My Appointments
+      </h1>
+
+      {appointments.length > 0 ? (
+        appointments.map((appointment) => (
+          <Card 
+            key={appointment._id} 
+            className="mb-6 shadow-lg hover:shadow-xl transition-shadow"
+          >
+            <div className="flex flex-col space-y-4">
+              {/* Status Header */}
+
+              <div className="flex justify-between items-start">
+                <Badge
+                  color={appointment.status === 'pending' ? 'warning' : 'success'}
+                  icon={appointment.status === 'pending' ? IoTimeOutline : IoCheckmarkCircleOutline}
+                  className="w-fit"
+                >
+                  {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                </Badge>
+
+                {appointment.status === "successful" && (
+                  <Button
+                    onClick={() => generatePDF(
+                      appointment.fullName,
+                      appointment.companyName,
+                      appointment.date,
+                      appointment.time
+                    )}
+                    color="success"
+                    size="sm"
+                  >
+                    <FaFileDownload className="mr-2" />
+                    Download Confirmation
+                  </Button>
+                )}
+              </div>
+
+              {/* Appointment Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* Left Column */}
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <FiUser className="text-gray-500 mr-2" />
+                    <span className="font-medium">Name:</span>
+                    <span className="ml-2">{appointment.fullName}</span>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <FiPhone className="text-gray-500 mr-2" />
+                    <span className="font-medium">Contact:</span>
+                    <span className="ml-2">{appointment.phone}</span>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <FiHome className="text-gray-500 mr-2" />
+                    <span className="font-medium">Address:</span>
+                    <span className="ml-2">{appointment.address}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <FiCalendar className="text-gray-500 mr-2" />
+                    <span className="font-medium">Created Date:</span>
+                    <span className="ml-2">{new Date(appointment.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <FiClock className="text-gray-500 mr-2" />
+                    <span className="font-medium">Created Time:</span>
+                    <span className="ml-2">{new Date(appointment.createdAt).toLocaleTimeString()}</span>
+                  </div>
+                
+                </div>
+
+                 {/* Right Column */}
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <span className="font-medium">Land Extent:</span>
+                    <span className="ml-2">{appointment.extent} {appointment.extentUnit}</span>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <span className="font-medium">Number of Plants:</span>
+                    <span className="ml-2">{appointment.numberOfPlants}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <span className="font-medium">Due to your observations,</span>
+                  </div> 
+
+                  <div className="flex items-center">
+                    <span className="font-medium">Affected Plants:</span>
+                    <span className="ml-2">{appointment.numberOfPlantsAffected}</span>
+                  </div>
+
+                  <div className="flex items-center">
+                    <span className="font-medium">Percentage of Disease Affected:</span>
+                    <span className="ml-2">{appointment.percentageAffected.toFixed(2)}%</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="font-medium">Risk Assesment:</span>
+                    <p><span className="font-semibold">Risk Assessment:</span> 
+                <span className={`px-2 py-1 ml-2 rounded ${
+                  appointment.riskAssessment === 'High' ? 'bg-red-200' :
+                  appointment.riskAssessment === 'Medium' ? 'bg-yellow-200' : 'bg-green-200'
+                }`}>
+                  {appointment.riskAssessment}
+                </span>
+              </p>
+                  </div>
+                </div>
+
+                
+                {/* Scheduled Section */}
+                <div className="mt-4">
+            <p className="font-semibold">
+              {appointment.status === 'pending' ? (
+                <span className="text-yellow-600">Scheduled soon</span>
+              ) : (
+                <>
+                  Scheduled Date: {new Date(appointment.scheduledDate).toLocaleDateString()}
+                  <br />
+                  Scheduled Time: {appointment.scheduledTime}
+                </>
+              )}
+            </p>
+          </div>
+              </div>
+
+              {/* Message Section */}
+              {appointment.message && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center mb-2">
+                    <FiMessageSquare className="text-gray-500 mr-2" />
+                    <span className="font-medium">Your Message:</span>
+                  </div>
+                  <p className="text-gray-700 italic">"{appointment.message}"</p>
+                </div>
+              )}
+
+              {/* Approval Notice */}
+              {appointment.status === "successful" && (
+                <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-green-800">
+                    Due to the widespread coconut leaf wilt disease in your area, a CT Officer visit has been scheduled for your plantation. Please download and keep this appointment confirmation.
+                  </p>
+                </div>
+              )}
+            </div>
+          </Card>
+        ))
+      ) : (
+        <Card className="text-center py-12">
+          <FiCalendar className="mx-auto text-gray-400 text-3xl mb-4" />
+          <h3 className="text-xl font-semibold text-gray-700">No appointments found</h3>
+          <p className="text-gray-500 mt-2">You don't have any scheduled appointments yet.</p>
+        </Card>
+      )}
+    </div>
+  );
+}
+

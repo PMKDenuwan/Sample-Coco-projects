@@ -1,0 +1,152 @@
+Report Functions Requirements :
+
+Ok Now I have requirement as this to change the my exisiting code(CreateReport.jsx) :
+
+first requirement :
+
+When user clicks "New Report" button, user can fill the report.
+When user fill the forum, user need to fill regional division as text input.(This is the exisiting process)
+My requirement is :
+If user clicks province as southern province and user selects district as Galle or Matara or  Hambantota , you need to implement logic to regional division shows as dropdown according to data that I provided you.(you can store regional divisions as an array)
+This logic only applicable for If user clicks southern province, then regional divisions shows as drop down and otherwise regional divisions as text field.
+Also need to modify and implement same logic for ->> filter regional division
+
+const galleDistrict = [
+  "Akmeemana",
+  "Ambalangoda",
+  "Baddegama",
+  "Balapitiya",
+  "Benthota",
+  "Bope-Poddala",
+  "Elpitiya",
+  "Galle Four Gravets",
+  "Gonapinuwala",
+  "Habaraduwa",
+  "Hikkaduwa",
+  "Imaduwa",
+  "Karandeniya",
+  "Nagoda",
+  "Neluwa",
+  "Niyagama",
+  "Thawalama",
+  "Welivitiya-Divithura",
+  "Yakkalamulla"
+];
+
+const mataraDistrict = [
+  "Akuressa",
+  "Athuraliya",
+  "Devinuwara",
+  "Dickwella",
+  "Hakmana",
+  "Kamburupitiya",
+  "Kirinda Puhulwella",
+  "Kotapola",
+  "Malimbada",
+  "Matara Four Gravets",
+  "Mulatiyana",
+  "Pasgoda",
+  "Pitabeddara",
+  "Thihagoda",
+  "Weligama",
+  "Welipitiya"
+];
+
+const hambantotaDistrict = [
+  "Ambalantota",
+  "Angunakolapelessa",
+  "Beliatta",
+  "Hambantota",
+  "Katuwana",
+  "Lunugamvehera",
+  "Okewela",
+  "Sooriyawewa",
+  "Tangalle",
+  "Thissamaharama",
+  "Walasmulla",
+  "Weeraketiya"
+];
+
+2)Set proper validations :
+
+(1)Full Name data field :  
+user can not enter number or any symbol,character from user input.User can only enter letters as keyboard input.Other wise user can not give permission to enter number or any symbol,character from keyboard input.This must be check when user enter the data not submitiiting
+
+(2)Extent of the land data field :
+In here user can only, enter 1,2..like positive numbers.(can not enter single 0 or any minus number).should start on 1 not zero
+This also checks at the keyboard input.Other wise user can not give permission to enter number or any single 0 or minus number from keyboard input.This must be check when user enter the data at keyboard input not submititing
+
+Number  of coconut plants data field :
+In here user can only, enter 1,2..like positive numbers.(can not enter single 0 or any minus number).should start on 1 not zero
+This also checks at the keyboard input.Other wise user can not give permission to enter number or any single 0 or minus number from keyboard input.This must be check when user enter the data at keyboard input not submititing
+
+When Tree Health Data Entry  section based on user inputs for Extent of the land and  Number  of coconut plants data field generate dynamic rows.
+But the thing is that If user need to add row newly or remove one row.There is no option for that.
+Ex: User enter number of coconut plants as :10
+but actual value is 11.In exisiting cod scenario, user can not have option to add new row (new tree)
+ User enter number of coconut plants as :10
+but actual value is 9.In exisiting cod scenario, user can not have option to remove  row (new tree)
+So need to implement option for this.
+Crreate Add tree button that can add new row and Remove button that can remove the button.
+
+ (Generate PDF after clicking Submit button)
+ Also user clicks "Submit" button, after that it need to generate pdf(issued certificate) and allows to download the document  it  in efficient  way to user friendly manner:
+*How many trees affected the disease(this equals to how many trees that should be cut down), and what is the percentage that affected disease out of number of coconut plants
+*How many under 2 years trees affected the disease and what is the percentage of it out number of coconut tree under 2 years.
+*How many over 2 years trees affected the disease and what is the percentage of it out number of coconut tree over 2 years.
+
+Show these detialed suitable diagram (pie chart or what ever)
+
+Need to show How many incentive that he/she can obtain when cut down the approved trees.
+Incentives= Approved trees (disease affected trees) * 3000
+
+Also need to shows as categorized way: 
+ How many over 2 year coconut tree disease affected and what are these trees(mentioned tree numbers)
+
+ How many underr 2 year coconut tree disease affected and what are these trees(mentioned tree numbers)
+
+
+mentioned all trees(tree numbers)
+
+Here is the pdf structure that need to create:
+CERTIFICATE OF CONFIRMATION
+
+This is to certify that the following details pertain to the Weligama Coconut Leaf Wilt Disease affecting the coconut cultivation of the individual named below:
+
+Report ID: [Report ID]
+
+Full Name: [Full Name]
+
+Province: [Province]  District: [District]  Regional Division: [Regional Division]
+
+Address: [Address]
+
+Land Extent: [Land Extent] acres
+Number of Coconut Plants: [Total Coconut Plants]
+
+Disease Impact Details
+
+Affected Coconut Plants: [Affected Coconut Plants]
+
+Percentage of Disease Impact: [Percentage]%
+
+Number of Affected Trees: [Affected Tree Numbers]
+
+Under 2 Years: [Affected Under 2 Years] trees ([Percentage]% of total trees under 2 years)
+
+Over 2 Years: [Affected Over 2 Years] trees ([Percentage]% of total trees over 2 years)
+
+Graphical Representation:
+[Insert pie chart or bar chart displaying the distribution of affected trees]
+
+Incentives Calculation
+
+Approved Trees for Cutting: [Approved Trees]
+
+Incentives per Tree: LKR 3,000
+
+Total Incentive Amount: LKR [Approved Trees * 3000]
+
+Report Created On: [Date & Time]
+
+This certification is issued as per the findings of the relevant agricultural authorities, confirming the impact of Weligama Coconut Leaf Wilt Disease on the aforementioned coconut cultivation. The affected trees should be removed in accordance with the approved agricultural guidelines.

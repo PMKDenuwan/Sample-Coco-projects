@@ -1,0 +1,1652 @@
+***Folder Structure***
+
+frontend :
+|->pages 
+  |-->CreateReport.jsx
+|->components
+ |-->DashReport.jsx
+
+backend
+|->controllers
+  |-->report.controller.js
+|->models
+ |-->report.model,.js
+|->route
+ |-->report.model.js
+|-->index.js
+|-->server.js
+
+
+CreateReport.jsx
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Button, TextInput, Select, Label, Card, Spinner, Table, Badge } from 'flowbite-react';
+import axios from 'axios';
+import { ToastContainer, toast } from 'react-toastify';
+import { HiOutlineLocationMarker, HiOutlineDocumentText, HiInformationCircle,
+    HiTrendingUp,
+    HiCurrencyDollar,
+    HiStatusOffline } from 'react-icons/hi';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import 'react-toastify/dist/ReactToastify.css';
+
+// Static Sri Lankan location data
+const PROVINCES = [
+    'Central Province',
+    'Eastern Province',
+    'Northern Province',
+    'Southern Province',
+    'Western Province',
+    'North Western Province',
+    'North Central Province',
+    'Uva Province',
+    'Sabaragamuwa Province'
+];
+
+const DISTRICTS_BY_PROVINCE = {
+    'Central Province': ['Kandy', 'Matale', 'Nuwara Eliya'],
+    'Eastern Province': ['Ampara', 'Batticaloa', 'Trincomalee'],
+    'Northern Province': ['Jaffna', 'Kilinochchi', 'Mannar', 'Mullaitivu', 'Vavuniya'],
+    'Southern Province': ['Galle', 'Hambantota', 'Matara'],
+    'Western Province': ['Colombo', 'Gampaha', 'Kalutara'],
+    'North Western Province': ['Kurunegala', 'Puttalam'],
+    'North Central Province': ['Anuradhapura', 'Polonnaruwa'],
+    'Uva Province': ['Badulla', 'Monaragala'],
+    'Sabaragamuwa Province': ['Kegalle', 'Ratnapura']
+};
+
+const REGIONAL_DIVISIONS = {
+    'Galle': ["Akmeemana","Ambalangoda","Baddegama","Balapitiya","Benthota","Bope-Poddala","Elpitiya","GalleFourGravets","Gonapinuwala","Habaraduwa","Hikkaduwa","Imaduwa","Karandeniya","Nagoda","Neluwa","Niyagama","Thawalama","Welivitiya-Divithura","Yakkalamulla"] ,
+    'Matara': ["Akuressa", "Athuraliya", "Devinuwara", "Dickwella", "Hakmana", "Kamburupitiya", "Kirinda Puhulwella", "Kotapola", "Malimbada", "Matara Four Gravets", "Mulatiyana", "Pasgoda", "Pitabeddara", "Thihagoda", "Weligama", "Welipitiya"] ,
+    'Hambantota': ["Ambalantota", "Angunakolapelessa", "Beliatta", "Hambantota", "Katuwana", "Lunugamvehera", "Okewela", "Sooriyawewa", "Tangalle", "Thissamaharama", "Walasmulla", "Weeraketiya"]
+};
+
+const CreateReport = () => {
+    const [formData, setFormData] = useState({
+        reportName: 'Identification and reporting of trees with coconut leaf rot and Weligama coconut leaf wilt diseases',
+        uniqueId: '',
+        fullName: '',
+        province: '',
+        district: '',
+        regionalDivision: '',
+        gramaNiladari: '',
+        addressLine1: '',
+        addressLine2: '',
+        landExtent: { value: 0, unit: 'Acres' },
+        numberOfPlants: 0,
+        trees: []
+    });
+
+    const [submitting, setSubmitting] = useState(false);
+    const [affectedTreesCount, setAffectedTreesCount] = useState(0);
+    const [under2YearsAffected, setUnder2YearsAffected] = useState(0);
+    const [over2YearsAffected, setOver2YearsAffected] = useState(0);
+    const [affectedTreesList, setAffectedTreesList] = useState({
+        under2Years: [],
+        over2Years: []
+    });
+    const [nextUniqueId, setNextUniqueId] = useState('WD000001'); // Initialize with the first ID
+    const [uniqueIdError, setUniqueIdError] = useState('');
+
+    const numberOfPlantsRef = useRef(null);
+
+     // Function to fetch the last unique ID from backend
+     // Auto-generate unique ID on component mount
+     useEffect(() => {
+        setFormData(prev => ({ ...prev, uniqueId: nextUniqueId }));
+      }, [nextUniqueId]);
+
+  
+
+    // Auto-fill address line 2 when location fields change
+    useEffect(() => {
+        const { gramaNiladari, regionalDivision, district, province } = formData;
+        const addressLine2 = `${gramaNiladari}, ${regionalDivision}, ${district}, ${province}`;
+        setFormData(prev => ({ ...prev, addressLine2 }));
+    }, [formData.gramaNiladari, formData.regionalDivision, formData.district, formData.province]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        // Full Name validation
+        if (name === 'fullName') {
+            const newValue = value.replace(/[^A-Za-z\s]/g, ''); // Allow only letters and spaces
+            setFormData(prev => ({ ...prev, [name]: newValue }));
+            return;
+        }
+
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleLocationChange = (type, value) => {
+        const updates = { [type]: value };
+
+        if (type === 'province') {
+            updates.district = '';
+            updates.regionalDivision = '';
+        }
+
+        if (type === 'district') {
+            updates.regionalDivision = '';
+        }
+
+        setFormData(prev => ({ ...prev, ...updates }));
+    };
+
+    const handleLandExtentChange = (e) => {
+        let value = e.target.value;
+        if (value === '') {
+            value = 0;
+        }
+        const newValue = Math.max(1, parseInt(value)); // Ensure positive integers
+        setFormData(prev => ({
+            ...prev,
+            landExtent: { ...prev.landExtent, value: newValue }
+        }));
+    };
+
+    const handleNumberOfPlantsChange = (e) => {
+        let value = e.target.value;
+        if (value === '') {
+            value = 0;
+        }
+        const newValue = Math.max(1, parseInt(value)); // Ensure positive integers
+        setFormData(prev => ({ ...prev, numberOfPlants: newValue }));
+
+        // Update the tree table based on the new number of plants
+        updateTreeTable(newValue);
+
+        // Directly set the value to the TextInput
+        if (numberOfPlantsRef.current) {
+            numberOfPlantsRef.current.value = newValue;
+        }
+    };
+
+    const updateTreeTable = (num) => {
+        const currentTreeCount = formData.trees.length;
+
+        if (num > currentTreeCount) {
+            // Add trees
+            const newTrees = Array.from({ length: num - currentTreeCount }, (_, i) => ({
+                treeNumber: currentTreeCount + i + 1,
+                age: null,
+                symptoms: [],
+                affected: false
+            }));
+            setFormData(prev => ({ ...prev, trees: [...prev.trees, ...newTrees] }));
+        } else if (num < currentTreeCount) {
+            // Remove trees
+            setFormData(prev => ({ ...prev, trees: prev.trees.slice(0, num) }));
+        }
+    };
+
+    const handleAddTree = () => {
+        const newTreeNumber = formData.trees.length > 0 ? formData.trees[formData.trees.length - 1].treeNumber + 1 : 1;
+        const newTree = {
+            treeNumber: newTreeNumber,
+            age: null,
+            symptoms: [],
+            affected: false
+        };
+        setFormData(prev => ({ ...prev, trees: [...prev.trees, newTree], numberOfPlants: prev.trees.length + 1 }));
+    };
+
+    const handleRemoveTree = (index) => {
+        const updatedTrees = [...formData.trees];
+        updatedTrees.splice(index, 1);
+
+        // Update tree numbers in the remaining trees
+        updatedTrees.forEach((tree, i) => {
+            tree.treeNumber = i + 1;
+        });
+
+        setFormData(prev => ({ ...prev, trees: updatedTrees, numberOfPlants: updatedTrees.length }));
+    };
+
+    const handleTreeChange = (index, field, value) => {
+        const updatedTrees = [...formData.trees];
+        updatedTrees[index][field] = value;
+        updatedTrees[index].affected = updatedTrees[index].symptoms.length > 0;
+        setFormData(prev => ({ ...prev, trees: updatedTrees }));
+
+        // Update the affected trees count
+        updateAffectedTreesCount(updatedTrees);
+    };
+
+    useEffect(() => {
+        updateAffectedTreesCount(formData.trees);
+    }, [formData.trees]);
+
+    const updateAffectedTreesCount = (trees) => {
+        let affectedCount = 0;
+        let under2Count = 0;
+        let over2Count = 0;
+        const under2List = [];
+        const over2List = [];
+
+        trees.forEach(tree => {
+            if (tree.affected) {
+                affectedCount++;
+                if (tree.age === 2) {
+                    under2Count++;
+                    under2List.push(tree.treeNumber);
+                } else if (tree.age === 1) {
+                    over2Count++;
+                    over2List.push(tree.treeNumber);
+                }
+            }
+        });
+
+        setAffectedTreesCount(affectedCount);
+        setUnder2YearsAffected(under2Count);
+        setOver2YearsAffected(over2Count);
+        setAffectedTreesList({ under2Years: under2List, over2Years: over2List });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+
+            const postData = {
+                ...formData,
+                landExtent: formData.landExtent.value, // Send just the numeric value
+              };
+
+             await axios.post('http://localhost:5005/api/reports', formData);
+            
+            // Calculate next ID
+            const nextIdNumber = parseInt(formData.uniqueId.slice(2), 10) + 1;
+const nextId = `WD${String(nextIdNumber).padStart(6, '0')}`;
+setNextUniqueId(nextId);
+
+            const incentive = affectedTreesCount * 3000;
+            const detailedMessage = `
+                Total Trees Affected: ${affectedTreesCount} (${((affectedTreesCount / formData.numberOfPlants) * 100).toFixed(2)}%)
+                Under 2 Years Affected: ${under2YearsAffected} (${((under2YearsAffected / formData.numberOfPlants) * 100).toFixed(2)}%)
+                Over 2 Years Affected: ${over2YearsAffected} (${((over2YearsAffected / formData.numberOfPlants) * 100).toFixed(2)}%)
+                Total Incentive: LKR ${incentive.toLocaleString()}
+            `;
+            toast.success(detailedMessage, {
+                position: "bottom-right",
+                autoClose: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+            });
+
+           
+            toast.success('Report submitted successfully!');
+            setFormData(prev => ({
+                ...prev,
+                uniqueId: '', // Update the form with the new ID
+                fullName: '',
+                province: '',
+                district: '',
+                regionalDivision: '',
+                gramaNiladari: '',
+                addressLine1: '',
+                addressLine2: '',
+                landExtent: { value: 0, unit: 'Acres' },
+                numberOfPlants: 0,
+                trees: []
+            }));
+        } catch (error) {
+            toast.error('Error submitting report');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const isSouthernProvince = formData.province === 'Southern Province';
+    const showRegionalDivisionDropdown = isSouthernProvince && ['Galle', 'Matara', 'Hambantota'].includes(formData.district);
+
+    // Pie chart data for affected trees
+    const pieChartData = [
+        { name: 'Under 2 Years Affected', value: under2YearsAffected },
+        { name: 'Over 2 Years Affected', value: over2YearsAffected },
+        { name: 'Healthy Trees', value: formData.numberOfPlants - affectedTreesCount }
+    ];
+
+    const COLORS = ['#FF6384', '#36A2EB', '#FFCE56'];
+
+    // Calculate percentages
+    const totalAffectedPercentage = ((affectedTreesCount / formData.numberOfPlants) * 100).toFixed(2);
+    const under2YearsPercentage = ((under2YearsAffected / formData.numberOfPlants) * 100).toFixed(2);
+    const over2YearsPercentage = ((over2YearsAffected / formData.numberOfPlants) * 100).toFixed(2);
+    const incentivePerTree = 3000;
+    const totalIncentive = affectedTreesCount * incentivePerTree;
+
+    return (
+        <div className="p-4 max-w-6xl mx-auto">
+            <Card className="mb-6">
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <HiOutlineDocumentText className="text-blue-500" />
+                    {formData.reportName}
+                </h1>
+            </Card>
+
+            <ToastContainer position="bottom-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
+
+            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+                {/* Report Details Section */}
+                <Card>
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">Report Details</h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="uniqueId" value="Unique ID" />
+                                <TextInput
+                                    id="uniqueId"
+                                    value={formData.uniqueId}
+                                    placeholder="WD000001"
+                                    readOnly
+                                />
+                                {uniqueIdError && <p className="text-red-500 text-sm">{uniqueIdError}</p>}
+                            </div>
+
+                            <div>
+                                <Label htmlFor="fullName" value="Full Name" />
+                                <TextInput
+                                    id="fullName"
+                                    name="fullName" // Ensure this matches the key in formData
+                                    placeholder="Enter your full name"
+                                    value={formData.fullName}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Location Section */}
+                <Card>
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">Location Information</h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="province" value="Province" />
+                                <Select
+                                    id="province"
+                                    name="province"
+                                    value={formData.province}
+                                    onChange={(e) => handleLocationChange('province', e.target.value)}
+                                    required
+                                >
+                                    <option value="" disabled>Select Province</option>
+                                    {PROVINCES.map(province => (
+                                        <option key={province} value={province}>{province}</option>
+                                    ))}
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label htmlFor="district" value="District" />
+                                <Select
+                                    id="district"
+                                    name="district"
+                                    value={formData.district}
+                                    onChange={(e) => handleLocationChange('district', e.target.value)}
+                                    required
+                                    disabled={!formData.province}
+                                >
+                                    <option value="" disabled>Select District</option>
+                                    {formData.province && DISTRICTS_BY_PROVINCE[formData.province].map(district => (
+                                        <option key={district} value={district}>{district}</option>
+                                    ))}
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {showRegionalDivisionDropdown && (
+                                <div>
+                                    <Label htmlFor="regionalDivision" value="Regional Division" />
+                                    <Select
+                                        id="regionalDivision"
+                                        name="regionalDivision"
+                                        value={formData.regionalDivision}
+                                        onChange={handleChange}
+                                        required
+                                    >
+                                        <option value="" disabled>Select Regional Division</option>
+                                        {REGIONAL_DIVISIONS[formData.district].map(division => (
+                                            <option key={division} value={division}>{division}</option>
+                                        ))}
+                                    </Select>
+                                </div>
+                            )}
+
+                            <div>
+                                <Label htmlFor="gramaNiladari" value="Grama Niladari Division" />
+                                <TextInput
+                                    id="gramaNiladari"
+                                    name="gramaNiladari"
+                                    placeholder="Enter Grama Niladari Division"
+                                    value={formData.gramaNiladari}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="addressLine1" value="Address Line 1" />
+                                <TextInput
+                                    id="addressLine1"
+                                    name="addressLine1"
+                                    placeholder="Enter Address Line 1"
+                                    value={formData.addressLine1}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="addressLine2" value="Address Line 2" />
+                                <TextInput
+                                    id="addressLine2"
+                                    name="addressLine2"
+                                    value={formData.addressLine2}
+                                    readOnly
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Land Information Section */}
+                <Card>
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">Land Information</h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="landExtent" value="Land Extent (Acres)" />
+                                <TextInput
+                                    id="landExtent"
+                                    type="number"
+                                    placeholder="Enter land extent in acres"
+                                    value={formData.landExtent.value}
+                                    onChange={handleLandExtentChange}
+                                    min="1"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="numberOfPlants" value="Number of Plants" />
+                                <TextInput
+                                    id="numberOfPlants"
+                                    type="number"
+                                    placeholder="Enter number of plants"
+                                    value={formData.numberOfPlants}
+                                    onChange={handleNumberOfPlantsChange}
+                                    min="1"
+                                    required
+                                    ref={numberOfPlantsRef}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+
+                {/* Tree Information Section */}
+                <Card>
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">Tree Information</h2>
+                        <Table>
+                            <Table.Head>
+                                <Table.HeadCell>Tree Number</Table.HeadCell>
+                                <Table.HeadCell>Age (1: Over 2 Years, 2: Under 2 Years)</Table.HeadCell>
+                                <Table.HeadCell>Symptoms</Table.HeadCell>
+                                <Table.HeadCell>Affected</Table.HeadCell>
+                                <Table.HeadCell>
+                                    <span className="sr-only">Actions</span>
+                                </Table.HeadCell>
+                            </Table.Head>
+                            <Table.Body className="divide-y">
+                                {formData.trees.map((tree, index) => (
+                                    <Table.Row key={index} className="bg-white dark:border-gray-700 dark:bg-gray-800">
+                                        <Table.Cell className="whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                                            {tree.treeNumber}
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <Select
+                                                value={tree.age || ''}
+                                                onChange={(e) => handleTreeChange(index, 'age', parseInt(e.target.value))}
+                                            >
+                                                <option value="" disabled>Select Age</option>
+                                                <option value="1">Over 2 Years</option>
+                                                <option value="2">Under 2 Years</option>
+                                            </Select>
+                                        </Table.Cell>
+                                        <Table.Cell>
+    <div className="space-y-2">
+        <div className="flex items-center gap-2">
+            <input
+                type="checkbox"
+                checked={tree.symptoms.includes('Coconut leaves flattening and turning yellow-orange')}
+                onChange={(e) => handleTreeChange(index, 'symptoms', e.target.checked ? [...tree.symptoms, 'Coconut leaves flattening and turning yellow-orange'] : tree.symptoms.filter(s => s !== 'Coconut leaves flattening and turning yellow-orange'))}
+            />
+            <span>Coconut leaves flattening and turning yellow-orange</span>
+        </div>
+        <div className="flex items-center gap-2">
+            <input
+                type="checkbox"
+                checked={tree.symptoms.includes('Rotting branches, blackened leaves, falling rotten parts')}
+                onChange={(e) => handleTreeChange(index, 'symptoms', e.target.checked ? [...tree.symptoms, 'Rotting branches, blackened leaves, falling rotten parts'] : tree.symptoms.filter(s => s !== 'Rotting branches, blackened leaves, falling rotten parts'))}
+            />
+            <span>Rotting branches, blackened leaves, falling rotten parts</span>
+        </div>
+    </div>
+</Table.Cell>
+
+                                        <Table.Cell>
+                                            {tree.affected ? 'Yes' : 'No'}
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <Button color="failure" onClick={() => handleRemoveTree(index)}>
+                                                Remove
+                                            </Button>
+                                        </Table.Cell>
+                                    </Table.Row>
+                                ))}
+                            </Table.Body>
+                        </Table>
+                        <Button onClick={handleAddTree}>Add Tree</Button>
+                    </div>
+                </Card>
+
+                {/* Affected Trees Summary */}
+                {affectedTreesCount > 0 && (
+                    <Card className="mt-6 shadow-lg">
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                                    <HiInformationCircle className="mr-2 text-blue-600" size={32} />
+                                    Detailed Disease Analysis
+                                </h2>
+                                <Badge color="failure" icon={HiStatusOffline}>
+                                    Critical Observation
+                                </Badge>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Visualization Section */}
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                    <h3 className="text-lg font-semibold mb-4 text-gray-700">
+                                        Tree Health Distribution
+                                    </h3>
+                                    <ResponsiveContainer width="100%" height={300}>
+                                        <PieChart>
+                                            <Pie
+                                                data={pieChartData}
+                                                cx="50%"
+                                                cy="50%"
+                                                labelLine={false}
+                                                outerRadius={80}
+                                                fill="#8884d8"
+                                                dataKey="value"
+                                            >
+                                                {pieChartData.map((entry, index) => (
+                                                    <Cell
+                                                        key={`cell-${index}`}
+                                                        fill={COLORS[index % COLORS.length]}
+                                                    />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip />
+                                            <Legend />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Detailed Breakdown Section */}
+                                <div className="space-y-4">
+                                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                                        <h3 className="text-lg font-semibold mb-3 text-gray-800 flex items-center">
+                                            <HiTrendingUp className="mr-2 text-green-600" />
+                                            Overall Impact
+                                        </h3>
+                                        <div className="space-y-2">
+                                            <p className="flex justify-between">
+                                                <span>Total Trees Affected:</span>
+                                                <span className="font-bold text-red-600">
+                                                    {affectedTreesCount} ({totalAffectedPercentage}%)
+                                                </span>
+                                            </p>
+                                            <div className="h-2 bg-gray-200 rounded-full">
+                                                <div
+                                                    className="h-2 bg-red-500 rounded-full"
+                                                    style={{ width: `${totalAffectedPercentage}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                                        <h3 className="text-lg font-semibold mb-3 text-gray-800">
+                                            Detailed Breakdown
+                                        </h3>
+                                        <div className="space-y-2">
+                                            <div>
+                                                <p className="flex justify-between">
+                                                    <span>Under 2 Years Affected:</span>
+                                                    <span className="font-bold text-pink-600">
+                                                        {under2YearsAffected} ({under2YearsPercentage}%)
+                                                    </span>
+                                                </p>
+                                                <p className="text-sm text-gray-500">
+                                                    Tree Numbers: {affectedTreesList.under2Years.join(', ') || 'None'}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="flex justify-between">
+                                                    <span>Over 2 Years Affected:</span>
+                                                    <span className="font-bold text-blue-600">
+                                                        {over2YearsAffected} ({over2YearsPercentage}%)
+                                                    </span>
+                                                </p>
+                                                <p className="text-sm text-gray-500">
+                                                    Tree Numbers: {affectedTreesList.over2Years.join(', ') || 'None'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                                        <h3 className="text-lg font-semibold mb-3 text-gray-800 flex items-center">
+                                            <HiCurrencyDollar className="mr-2 text-green-600" />
+                                            Incentive Calculation
+                                        </h3>
+                                        <div className="space-y-2">
+                                            <p className="flex justify-between">
+                                                <span>Incentive per Tree:</span>
+                                                <span className="font-bold">LKR 3,000</span>
+                                            </p>
+                                            <p className="flex justify-between">
+                                                <span>Total Incentive:</span>
+                                                <span className="font-bold text-green-600">
+                                                    LKR {totalIncentive.toLocaleString()}
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                )}
+
+                {/* Submit Button */}
+                <Button type="submit" disabled={submitting}>
+                    {submitting ? (
+                        <>
+                            <Spinner size="sm" />
+                            <span className="pl-3">Submitting...</span>
+                        </>
+                    ) : (
+                        'Submit Report'
+                    )}
+                </Button>
+            </form>
+        </div>
+    );
+};
+
+export default CreateReport;
+
+DashReport.jsx
+// DashReport.jsx
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import {
+  Card,
+  Table,
+  Button,
+  TextInput,
+  Select,
+  Badge,
+  Spinner,
+  Modal
+} from "flowbite-react";
+import {
+  HiDocumentReport,
+  HiOutlineExclamationCircle,
+  HiTrash
+} from "react-icons/hi";
+import { IoIosAddCircleOutline } from "react-icons/io";
+import { AiOutlineSearch } from "react-icons/ai";
+import { TbPlant2 } from "react-icons/tb";
+import { MdOutlineWarning } from "react-icons/md";
+import { BiCut } from "react-icons/bi";
+import { Link } from "react-router-dom";
+import { toast } from "react-toastify";
+
+// Static Sri Lankan provinces and districts
+const PROVINCES = [
+  'Central Province',
+  'Eastern Province',
+  'Northern Province',
+  'Southern Province',
+  'Western Province',
+  'North Western Province',
+  'North Central Province',
+  'Uva Province',
+  'Sabaragamuwa Province'
+];
+
+const DISTRICTS_BY_PROVINCE = {
+  'Central Province': ['Kandy', 'Matale', 'Nuwara Eliya'],
+  'Eastern Province': ['Ampara', 'Batticaloa', 'Trincomalee'],
+  'Northern Province': ['Jaffna', 'Kilinochchi', 'Mannar', 'Mullaitivu', 'Vavuniya'],
+  'Southern Province': ['Galle', 'Hambantota', 'Matara'],
+  'Western Province': ['Colombo', 'Gampaha', 'Kalutara'],
+  'North Western Province': ['Kurunegala', 'Puttalam'],
+  'North Central Province': ['Anuradhapura', 'Polonnaruwa'],
+  'Uva Province': ['Badulla', 'Monaragala'],
+  'Sabaragamuwa Province': ['Kegalle', 'Ratnapura']
+};
+
+const galleDistrict = [
+  "Akmeemana",
+  "Ambalangoda",
+  "Baddegama",
+  "Balapitiya",
+  "Benthota",
+  "Bope-Poddala",
+  "Elpitiya",
+  "Galle Four Gravets",
+  "Gonapinuwala",
+  "Habaraduwa",
+  "Hikkaduwa",
+  "Imaduwa",
+  "Karandeniya",
+  "Nagoda",
+  "Neluwa",
+  "Niyagama",
+  "Thawalama",
+  "Welivitiya-Divithura",
+  "Yakkalamulla"
+];
+
+const mataraDistrict = [
+  "Akuressa",
+  "Athuraliya",
+  "Devinuwara",
+  "Dickwella",
+  "Hakmana",
+  "Kamburupitiya",
+  "Kirinda Puhulwella",
+  "Kotapola",
+  "Malimbada",
+  "Matara Four Gravets",
+  "Mulatiyana",
+  "Pasgoda",
+  "Pitabeddara",
+  "Thihagoda",
+  "Weligama",
+  "Welipitiya"
+];
+
+const hambantotaDistrict = [
+  "Ambalantota",
+  "Angunakolapelessa",
+  "Beliatta",
+  "Hambantota",
+  "Katuwana",
+  "Lunugamvehera",
+  "Okewela",
+  "Sooriyawewa",
+  "Tangalle",
+  "Thissamaharama",
+  "Walasmulla",
+  "Weeraketiya"
+];
+
+// Combined regional divisions for Southern Province districts
+const SOUTHERN_REGIONAL_DIVISIONS = {
+  'Galle': galleDistrict,
+  'Matara': mataraDistrict,
+  'Hambantota': hambantotaDistrict,
+};
+
+export default function DashReport() {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [filters, setFilters] = useState({
+    search: "",
+    province: "",
+    district: "",
+    regionalDivision: "",
+    timeRange: "all"
+  });
+  const [stats, setStats] = useState({
+    totalInspected: 0,
+    totalAffected: 0,
+    affectedPercentage: 0
+  });
+
+  const showRegionalDropdown = 
+    filters.province === "Southern Province" && 
+    ["Galle", "Matara", "Hambantota"].includes(filters.district);
+
+  useEffect(() => {
+    fetchReports();
+  }, [filters]);
+
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      const params = {
+        search: filters.search,
+        province: filters.province,
+        district: filters.district,
+        regionalDivision: filters.regionalDivision,
+        timeRange: filters.timeRange
+      };
+
+      const dateRange = getDateRange();
+      if (dateRange.start && dateRange.end) {
+        params.startDate = dateRange.start.toISOString();
+        params.endDate = dateRange.end.toISOString();
+      }
+
+      const [reportsRes, statsRes] = await Promise.all([
+        axios.get("/api/reports", { params }),
+        axios.get("/api/reports/stats", { params })
+      ]);
+
+      setReports(reportsRes.data);
+      setStats({
+        totalInspected: statsRes.data.totalInspected,
+        totalAffected: statsRes.data.totalAffected,
+        affectedPercentage: statsRes.data.percentage
+      });
+    } catch (err) {
+      setError(err.message);
+      toast.error("Failed to load reports");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateStatistics = (reports = []) => {
+    if (!Array.isArray(reports) || reports.length === 0) {
+      setStats({ totalInspected: 0, totalAffected: 0, affectedPercentage: 0 });
+      return;
+    }
+
+    const totalInspected = reports.reduce((acc, report) => acc + (report.numberOfPlants || 0), 0);
+    const totalAffected = reports.reduce((acc, report) => acc + (report.affectedPlants || 0), 0);
+    const percentage = totalInspected > 0 ? ((totalAffected / totalInspected) * 100).toFixed(2) : 0;
+
+    setStats({
+      totalInspected,
+      totalAffected,
+      affectedPercentage: percentage
+    });
+  };
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    const newFilters = { ...filters, [name]: value };
+
+    // Reset child selections when parent changes
+    if (name === "province") {
+      newFilters.district = "";
+      newFilters.regionalDivision = "";
+    } else if (name === "district") {
+      newFilters.regionalDivision = "";
+    }
+
+    setFilters(newFilters);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await axios.delete(`/api/reports/${selectedReport._id}`);
+      setReports(prev => prev.filter(r => r._id !== selectedReport._id));
+      toast.success("Report deleted successfully");
+      setShowDeleteModal(false);
+    } catch (err) {
+      toast.error("Failed to delete report");
+    }
+  };
+
+  const handleDownload = (reportId) => {
+    window.open(`/api/reports/${reportId}/pdf`, "_blank");
+  };
+
+  const getDateRange = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);  // set time to the beginning of the day
+
+    switch (filters.timeRange) {
+      case 'today':
+        return {
+          start: today,
+          end: new Date(today.getTime() + 86400000 - 1)  // end of the day
+        };
+      case 'week':
+        const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+        const endOfWeek = new Date(startOfWeek.getTime() + 6 * 86400000);
+        return {
+          start: startOfWeek,
+          end: new Date(endOfWeek.getTime() + 86400000 - 1)  // end of the day
+        };
+      case 'month':
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        return {
+          start: startOfMonth,
+          end: new Date(endOfMonth.getTime() + 86400000 - 1)  // end of the day
+        };
+      case 'year':
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        const endOfYear = new Date(today.getFullYear(), 11, 31);
+        return {
+          start: startOfYear,
+          end: new Date(endOfYear.getTime() + 86400000 - 1)  // end of the day
+        };
+      default:
+        return {
+          start: null,
+          end: null
+        };
+    }
+  };
+
+  const getStatusColor = (percentage) => {
+    if (percentage < 30) return "success";
+    if (percentage < 50) return "warning";
+    return "failure";
+  };
+
+  const isSouthernProvinceFilter =
+    filters.province === "Southern Province" &&
+    ["Galle", "Matara", "Hambantota"].includes(filters.district);
+
+  if (error) {
+    return (
+      <div className="text-center py-12 text-red-500">
+        Error: {error}. Please try reloading the page.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      <h1 className="text-3xl font-bold mb-6 text-gray-800">
+        Coconut Disease Monitoring
+      </h1>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card className="hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 mb-1">Total Inspected</p>
+              <h2 className="text-3xl font-bold text-gray-800">
+                {stats.totalInspected.toLocaleString()}
+              </h2>
+            </div>
+            <TbPlant2 className="text-4xl text-green-500" />
+          </div>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 mb-1">Affected Trees</p>
+              <h2 className="text-3xl font-bold text-gray-800">
+                {stats.totalAffected.toLocaleString()}
+              </h2>
+            </div>
+            <MdOutlineWarning className="text-4xl text-yellow-500" />
+          </div>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 mb-1">Affected Percentage</p>
+              <h2 className="text-3xl font-bold text-gray-800">
+                {stats.affectedPercentage}%
+              </h2>
+            </div>
+            <BiCut className="text-4xl text-red-500" />
+          </div>
+        </Card>
+      </div>
+
+      {/* Filters Section */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Province
+            </label>
+            <Select
+              name="province"
+              value={filters.province}
+              onChange={handleFilterChange}
+            >
+              <option value="">All Provinces</option>
+              {PROVINCES.map(province => (
+                <option key={province} value={province}>
+                  {province}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              District
+            </label>
+            <Select
+              name="district"
+              value={filters.district}
+              onChange={handleFilterChange}
+              disabled={!filters.province}
+            >
+              <option value="">All Districts</option>
+              {(DISTRICTS_BY_PROVINCE[filters.province] || []).map(district => (
+                <option key={district} value={district}>
+                  {district}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Regional Division
+            </label>
+            {showRegionalDropdown ? (
+              <Select
+                name="regionalDivision"
+                value={filters.regionalDivision}
+                onChange={handleFilterChange}
+              >
+                <option value="">All Divisions</option>
+                {(SOUTHERN_REGIONAL_DIVISIONS[filters.district] || []).map(division => (
+                  <option key={division} value={division}>
+                    {division}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <TextInput
+                name="regionalDivision"
+                placeholder="Enter division"
+                value={filters.regionalDivision}
+                onChange={handleFilterChange}
+              />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Time Range
+            </label>
+            <Select
+              name="timeRange"
+              value={filters.timeRange}
+              onChange={handleFilterChange}
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="year">This Year</option>
+            </Select>
+          </div>
+
+          <div>
+            <TextInput
+              name="search"
+              placeholder="Search reports..."
+              rightIcon={AiOutlineSearch}
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Actions Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div className="flex items-center gap-2">
+          <Link to="/createReport">
+            <Button gradientMonochrome="info">
+              <IoIosAddCircleOutline className="mr-2 text-lg" />
+              New Report
+            </Button>
+          </Link>
+
+          <Button gradientMonochrome="pink">
+            <HiDocumentReport className="mr-2 text-lg" />
+            Export Data
+          </Button>
+        </div>
+      </div>
+
+      {/* Reports Table */}
+      {loading ? (
+        <div className="text-center py-12">
+          <Spinner size="xl" aria-label="Loading reports..." />
+          <p className="mt-3 text-gray-600">Loading reports...</p>
+        </div>
+      ) : reports.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-lg">
+          <HiOutlineExclamationCircle className="mx-auto text-5xl text-gray-400 mb-4" />
+          <h3 className="text-xl font-semibold mb-2">No Reports Found</h3>
+          <p className="text-gray-600 mb-4">
+            Try adjusting your filters or create a new report.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <Table hoverable className="min-w-[1200px]">
+            <Table.Head>
+              <Table.HeadCell>Report ID</Table.HeadCell>
+              <Table.HeadCell>Submitted By</Table.HeadCell>
+              <Table.HeadCell>Location</Table.HeadCell>
+              <Table.HeadCell>Status</Table.HeadCell>
+              <Table.HeadCell>Plants</Table.HeadCell>
+              <Table.HeadCell>Incentive</Table.HeadCell>
+              <Table.HeadCell>Actions</Table.HeadCell>
+            </Table.Head>
+            <Table.Body className="divide-y">
+              {reports.map((report) => (
+                <Table.Row key={report._id} className="bg-white">
+                  <Table.Cell className="font-semibold text-gray-900">
+                    {report.uniqueId}
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{report.fullName}</span>
+                      <span className="text-sm text-gray-500">
+                        {new Date(report.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    <div className="flex flex-col">
+                      <span>{report.district}</span>
+                      <span className="text-sm text-gray-500">
+                        {report.regionalDivision}
+                      </span>
+                    </div>
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    <Badge
+                      color={getStatusColor(report.affectedPercentage)}
+                      className="w-fit px-3 py-1 rounded-full"
+                    >
+                      {report.affectedPercentage}% Affected
+                    </Badge>
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    <div className="flex flex-col">
+                      <span>Total: {report.numberOfPlants}</span>
+                      <span className="text-red-600">
+                        Affected: {report.affectedPlants}
+                      </span>
+                    </div>
+                  </Table.Cell>
+
+                  <Table.Cell className="font-semibold">
+                    Rs. {(report.affectedPlants * 3000).toLocaleString()}
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="xs"
+                        gradientMonochrome="info"
+                        onClick={() => handleDownload(report._id)}
+                      >
+                        PDF
+                      </Button>
+                      <Button
+                        size="xs"
+                        gradientMonochrome="failure"
+                        onClick={() => {
+                          setSelectedReport(report);
+                          setShowDeleteModal(true);
+                        }}
+                      >
+                        <HiTrash className="mr-1" />
+                      </Button>
+                    </div>
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        show={showDeleteModal}
+        size="md"
+        onClose={() => setShowDeleteModal(false)}
+      >
+        <Modal.Header>Confirm Deletion</Modal.Header>
+        <Modal.Body>
+          <div className="text-center">
+            <HiOutlineExclamationCircle className="mx-auto mb-4 h-14 w-14 text-gray-400" />
+            <h3 className="mb-5 text-lg font-normal text-gray-500">
+              Are you sure you want to delete report {selectedReport?.uniqueId}?
+            </h3>
+            <div className="flex justify-center gap-4">
+              <Button color="failure" onClick={handleDelete}>
+                Yes, delete it
+              </Button>
+              <Button
+                color="gray"
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </Modal.Body>
+      </Modal>
+    </div>
+  );
+}
+
+
+report.controller.js
+import Report from require('../models/report.model.js');
+
+// Function to generate the next unique ID
+const generateNextUniqueId = async () => {
+    try {
+        // Find the latest report
+        const latestReport = await Report.findOne().sort({ uniqueId: -1 });
+
+        if (latestReport) {
+            const lastId = latestReport.uniqueId;
+            const lastNumber = parseInt(lastId.slice(2), 10);
+            const nextNumber = lastNumber + 1;
+            return `WD${String(nextNumber).padStart(6, '0')}`;
+        } else {
+            return 'WD000001'; // First ID
+        }
+    } catch (error) {
+        console.error('Error generating unique ID:', error);
+        throw error; // Re-throw to be caught by the route handler
+    }
+};
+
+// Create a new report
+exports.create = async (req, res) => {
+    try {
+        // Generate unique ID if not provided or if it's "NEW"
+        if (!req.body.uniqueId || req.body.uniqueId === "NEW") {
+            req.body.uniqueId = await generateNextUniqueId();
+        }
+
+        const report = new Report(req.body);
+        const savedReport = await report.save();
+        res.status(201).json(savedReport);
+    } catch (err) {
+        console.error('Error creating report:', err);
+        if (err.name === 'ValidationError') {
+            // Mongoose validation error
+            return res.status(400).json({ message: 'Validation error', errors: err.errors });
+        } else if (err.code === 11000) {
+            // MongoDB duplicate key error (e.g., duplicate uniqueId)
+            return res.status(409).json({ message: 'Duplicate unique ID', field: Object.keys(err.keyPattern)[0] });
+        }
+        res.status(500).json({ message: 'Error creating report', error: err });
+    }
+};
+
+// Get all reports
+exports.findAll = async (req, res) => {
+    try {
+        const reports = await Report.find();
+        res.status(200).json(reports);
+    } catch (err) {
+        console.error('Error getting reports:', err);
+        res.status(500).json({ message: 'Error getting reports', error: err });
+    }
+};
+
+// Get a single report by ID
+exports.findOne = async (req, res) => {
+    try {
+        const report = await Report.findById(req.params.id);
+        if (!report) {
+            return res.status(404).json({ message: 'Report not found' });
+        }
+        res.status(200).json(report);
+    } catch (err) {
+        console.error('Error getting report:', err);
+        res.status(500).json({ message: 'Error getting report', error: err });
+    }
+};
+
+// Update a report by ID
+exports.update = async (req, res) => {
+    try {
+        const report = await Report.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        if (!report) {
+            return res.status(404).json({ message: 'Report not found' });
+        }
+        res.status(200).json(report);
+    } catch (err) {
+        console.error('Error updating report:', err);
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({ message: 'Validation error', errors: err.errors });
+        } else if (err.code === 11000) {
+            return res.status(409).json({ message: 'Duplicate unique ID', field: Object.keys(err.keyPattern)[0] });
+        }
+        res.status(500).json({ message: 'Error updating report', error: err });
+    }
+};
+
+// Delete a report by ID
+exports.delete = async (req, res) => {
+    try {
+        const report = await Report.findByIdAndDelete(req.params.id);
+        if (!report) {
+            return res.status(404).json({ message: 'Report not found' });
+        }
+        res.status(200).json({ message: 'Report deleted' });
+    } catch (err) {
+        console.error('Error deleting report:', err);
+        res.status(500).json({ message: 'Error deleting report', error: err });
+    }
+};
+
+// Get the next available unique ID
+exports.getNextUniqueId = async (req, res) => {
+    try {
+        const nextUniqueId = await generateNextUniqueId();
+        res.status(200).json({ nextUniqueId });
+    } catch (error) {
+        res.status(500).json({ message: 'Error generating unique ID', error: error });
+    }
+};
+
+report.model.js
+const mongoose = require('mongoose');
+
+const reportSchema = new mongoose.Schema({
+    reportName: { type: String, required: true },
+    uniqueId: { type: String, required: true, unique: true },
+    fullName: { type: String, required: true },
+    province: { type: String, required: true },
+    district: { type: String, required: true },
+    regionalDivision: { type: String },
+    gramaNiladari: { type: String, required: true },
+    addressLine1: { type: String, required: true },
+    addressLine2: { type: String },
+    landExtent: { type: Number, required: true },  // Storing only the value
+    numberOfPlants: { type: Number, required: true },
+    trees: [{
+        treeNumber: { type: Number },
+        age: { type: Number },
+        symptoms: { type: [String] },
+        affected: { type: Boolean }
+    }],
+    createdAt: { type: Date, default: Date.now }
+});
+
+module.exports = mongoose.model('Report', reportSchema);
+
+
+report.route.js
+const express = require('express');
+const router = express.Router();
+const reportsController = require('./report.controller');
+
+// Define routes
+router.get('/reports', reportsController.findAll);
+router.get('/reports/nextUniqueId', reportsController.getNextUniqueId);
+router.post('/reports', reportsController.create);
+router.get('/reports/:id', reportsController.findOne);
+router.put('/reports/:id', reportsController.update);
+router.delete('/reports/:id', reportsController.delete);
+
+module.exports = router;
+
+index.js
+import express from 'express';
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import bodyParser from 'body-parser';
+
+// Load environment variables
+dotenv.config();
+
+// Debug: Check if MONGODB_CONNECTION is loading correctly
+console.log("MongoDB Connection String:", process.env.MONGODB_CONNECTION);
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_CONNECTION, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+})
+.then(() => console.log('✅ Database connected successfully...'))
+.catch((err) => {
+    console.error("❌ MongoDB Connection Error:", err);
+    process.exit(1);  // Exit the process if MongoDB connection fails
+});
+
+// Initialize Express
+const app = express();
+
+// Middleware
+app.use(cors());  // Enable CORS
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Routes
+import reportRouter from './routes/report.route.js'; // Use ES Modules import
+import appointmentRouter from './routes/appointments.route.js'; // Use ES Modules import
+import authRouter from './routes/auth.route.js'; // Use ES Modules import
+import locationRouter from './routes/location.route.js'; // Use ES Modules import
+
+app.get('/', (req, res) => {
+    res.send('Backend is running!');
+});
+
+app.use('/api/reports', reportRouter);
+app.use('/api/appointment', appointmentRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/location', locationRouter);
+
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+    const statusCode = err.statusCode || 500;
+    const message = err.message || 'Internal server error';
+    res.status(statusCode).json({
+        success: false,
+        statusCode,
+        message
+    });
+});
+
+console.log('Report Router:', reportRouter);
+console.log('Location Router:', locationRouter);
+console.log('Auth Router:', authRouter);
+console.log('Appointment Router:', appointmentRouter);
+
+// Start the Server
+const PORT = process.env.PORT || 5005;
+app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+});
+
+
+server.js
+const express = require('express');
+const multer = require('multer');
+const cors = require('cors');
+const nodemailer = require('nodemailer');
+const mongoose = require('mongoose'); // Add mongoose for MongoDB
+require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+
+// Create the 'uploads' folder if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/'); // Save files in the 'uploads' folder
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname); // Rename files to avoid conflicts
+  },
+});
+const upload = multer({ storage: storage });
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('Connected to MongoDB'))
+  .catch((err) => console.error('Error connecting to MongoDB:', err));
+
+// Import the Appointment model
+const Appointment = require('./models/appointments.model');
+
+// Email sending route
+app.post('/api/send-email', (req, res) => {
+  const { to, subject, text } = req.body;
+
+  const transporter = nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      return res.status(500).send('Error sending email');
+    }
+    res.status(200).send('Email sent successfully');
+  });
+});
+
+// Appointment creation route with file upload
+app.post('/api/appointment', upload.array('photos', 3), async (req, res) => {
+  try {
+    const {
+      fullName,
+      province,
+      district,
+      address,
+      extent,
+      extentUnit,
+      numberOfPlants,
+      numberOfPlantsAffected,
+      email,
+      phone,
+      message,
+      userId,
+    } = req.body;
+
+    // Get file paths from uploaded files
+    const photos = req.files.map((file) => file.path);
+
+    // Validate required fields
+    if (
+      !fullName ||
+      !province ||
+      !district ||
+      !address ||
+      !extent ||
+      !extentUnit ||
+      !numberOfPlants ||
+      !numberOfPlantsAffected ||
+      !email ||
+      !phone ||
+      !message ||
+      !photos ||
+      !userId
+    ) {
+      return res.status(400).json({ message: 'Please fill out all the fields' });
+    }
+
+    // Calculate percentage of affected plants
+    const percentageAffected = (numberOfPlantsAffected / numberOfPlants) * 100;
+
+    // Create a new appointment
+    const newAppointment = new Appointment({
+      fullName,
+      province,
+      district,
+      address,
+      extent,
+      extentUnit,
+      numberOfPlants,
+      numberOfPlantsAffected,
+      email,
+      phone,
+      message,
+      photos,
+      percentageAffected,
+      userId,
+    });
+
+    // Save the appointment to the database
+    const savedAppointment = await newAppointment.save();
+
+    // Send success response
+    res.status(201).json({ message: 'Appointment created', savedAppointment });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+
+

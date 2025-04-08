@@ -1,0 +1,387 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Button, TextInput, Select, Label, Card, Spinner, Table } from 'flowbite-react';
+import axios from 'axios';
+import { ToastContainer, toast } from 'react-toastify';
+import { HiOutlineLocationMarker, HiOutlineDocumentText } from 'react-icons/hi';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+
+// Static Sri Lankan location data
+const PROVINCES = [
+    'Central Province',
+    'Eastern Province',
+    'Northern Province',
+    'Southern Province',
+    'Western Province',
+    'North Western Province',
+    'North Central Province',
+    'Uva Province',
+    'Sabaragamuwa Province'
+];
+
+const DISTRICTS_BY_PROVINCE = {
+    'Central Province': ['Kandy', 'Matale', 'Nuwara Eliya'],
+    'Eastern Province': ['Ampara', 'Batticaloa', 'Trincomalee'],
+    'Northern Province': ['Jaffna', 'Kilinochchi', 'Mannar', 'Mullaitivu', 'Vavuniya'],
+    'Southern Province': ['Galle', 'Hambantota', 'Matara'],
+    'Western Province': ['Colombo', 'Gampaha', 'Kalutara'],
+    'North Western Province': ['Kurunegala', 'Puttalam'],
+    'North Central Province': ['Anuradhapura', 'Polonnaruwa'],
+    'Uva Province': ['Badulla', 'Monaragala'],
+    'Sabaragamuwa Province': ['Kegalle', 'Ratnapura']
+};
+
+const REGIONAL_DIVISIONS = {
+    'Galle': ["Akmeemana","Ambalangoda","Baddegama","Balapitiya","Benthota","Bope-Poddala","Elpitiya","GalleFourGravets","Gonapinuwala","Habaraduwa","Hikkaduwa","Imaduwa","Karandeniya","Nagoda","Neluwa","Niyagama","Thawalama","Welivitiya-Divithura","Yakkalamulla"] ,
+    'Matara': ["Akuressa", "Athuraliya", "Devinuwara", "Dickwella", "Hakmana", "Kamburupitiya", "Kirinda Puhulwella", "Kotapola", "Malimbada", "Matara Four Gravets", "Mulatiyana", "Pasgoda", "Pitabeddara", "Thihagoda", "Weligama", "Welipitiya"] ,
+    'Hambantota': ["Ambalantota", "Angunakolapelessa", "Beliatta", "Hambantota", "Katuwana", "Lunugamvehera", "Okewela", "Sooriyawewa", "Tangalle", "Thissamaharama", "Walasmulla", "Weeraketiya"] 
+};
+
+const CreateReport = () => {
+    const [formData, setFormData] = useState({
+        reportName: 'Identification and reporting of trees with coconut leaf rot and Weligama coconut leaf wilt diseases',
+        uniqueId: '',
+        fullName: '',
+        province: '',
+        district: '',
+        regionalDivision: '',
+        gramaNiladari: '',
+        addressLine1: '',
+        addressLine2: '',
+        landExtent: { value: 0, unit: 'Acres' },
+        numberOfPlants: 0,
+        trees: []
+    });
+
+    const [submitting, setSubmitting] = useState(false);
+    const [affectedTreesCount, setAffectedTreesCount] = useState(0);
+    const [under2YearsAffected, setUnder2YearsAffected] = useState(0);
+    const [over2YearsAffected, setOver2YearsAffected] = useState(0);
+    const [affectedTreesList, setAffectedTreesList] = useState({
+      under2Years: [],
+      over2Years: []
+    });
+    const [nextUniqueId, setNextUniqueId] = useState('WD000001'); // Initialize with the first ID
+    const [uniqueIdError, setUniqueIdError] = useState('');
+
+    const numberOfPlantsRef = useRef(null);
+
+    // Function to fetch the last unique ID from backend
+    const fetchLastUniqueId = async () => {
+      try {
+          const response = await axios.get('/api/last-report-id');
+          const lastId = response.data.lastId;
+          
+          if (lastId) {
+              const lastNumber = parseInt(lastId.slice(2), 10);
+              const newId = `WD${String(lastNumber + 1).padStart(6, '0')}`;
+              setNextUniqueId(newId);
+          }
+      } catch (error) {
+          console.error('Error fetching last ID:', error);
+          // Fallback to default if fetching fails
+          setNextUniqueId('WD000001');
+      }
+    };
+
+    // Trigger fetching last ID when component mounts or when a new report is started
+    useEffect(() => {
+      fetchLastUniqueId();
+    }, []);
+
+    // Auto-generate unique ID on component mount
+    useEffect(() => {
+        setFormData(prev => ({ ...prev, uniqueId: nextUniqueId }));
+    }, [nextUniqueId]);
+
+    // Auto-fill address line 2 when location fields change
+    useEffect(() => {
+        const { gramaNiladari, regionalDivision, district, province } = formData;
+        const addressLine2 = `${gramaNiladari}, ${regionalDivision}, ${district}, ${province}`;
+        setFormData(prev => ({ ...prev, addressLine2 }));
+    }, [formData.gramaNiladari, formData.regionalDivision, formData.district, formData.province]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        // Full Name validation
+        if (name === 'fullName') {
+            const newValue = value.replace(/[^A-Za-z\s]/g, ''); // Allow only letters and spaces
+            setFormData(prev => ({ ...prev, [name]: newValue }));
+            return;
+        }
+
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleLocationChange = (type, value) => {
+        const updates = { [type]: value };
+
+        if (type === 'province') {
+            updates.district = '';
+            updates.regionalDivision = '';
+        }
+
+        if (type === 'district') {
+            updates.regionalDivision = '';
+        }
+
+        setFormData(prev => ({ ...prev, ...updates }));
+    };
+
+    const handleLandExtentChange = (e) => {
+        let value = e.target.value;
+        if (value === '') {
+            value = 0;
+        }
+        const newValue = Math.max(1, parseInt(value)); // Ensure positive integers
+        setFormData(prev => ({
+            ...prev,
+            landExtent: { ...prev.landExtent, value: newValue }
+        }));
+    };
+
+    const handleNumberOfPlantsChange = (e) => {
+        let value = e.target.value;
+        if (value === '') {
+            value = 0;
+        }
+        const newValue = Math.max(1, parseInt(value)); // Ensure positive integers
+        setFormData(prev => ({ ...prev, numberOfPlants: newValue }));
+
+        // Update the tree table based on the new number of plants
+        updateTreeTable(newValue);
+
+        // Directly set the value to the TextInput
+        if (numberOfPlantsRef.current) {
+            numberOfPlantsRef.current.value = newValue;
+        }
+    };
+
+    const updateTreeTable = (num) => {
+        const currentTreeCount = formData.trees.length;
+
+        if (num > currentTreeCount) {
+            // Add trees
+            const newTrees = Array.from({ length: num - currentTreeCount }, (_, i) => ({
+                treeNumber: currentTreeCount + i + 1,
+                age: null,
+                symptoms: [],
+                affected: false
+            }));
+            setFormData(prev => ({ ...prev, trees: [...prev.trees, ...newTrees] }));
+        } else if (num < currentTreeCount) {
+            // Remove trees
+            setFormData(prev => ({ ...prev, trees: prev.trees.slice(0, num) }));
+        }
+    };
+
+    const handleAddTree = () => {
+        const newTreeNumber = formData.trees.length > 0 ? formData.trees[formData.trees.length - 1].treeNumber + 1 : 1;
+        const newTree = {
+            treeNumber: newTreeNumber,
+            age: null,
+            symptoms: [],
+            affected: false
+        };
+        setFormData(prev => ({ ...prev, trees: [...prev.trees, newTree], numberOfPlants: prev.trees.length + 1 }));
+    };
+
+    const handleRemoveTree = (index) => {
+        const updatedTrees = [...formData.trees];
+        updatedTrees.splice(index, 1);
+
+        // Update tree numbers in the remaining trees
+        updatedTrees.forEach((tree, i) => {
+            tree.treeNumber = i + 1;
+        });
+
+        setFormData(prev => ({ ...prev, trees: updatedTrees, numberOfPlants: updatedTrees.length }));
+    };
+
+    const handleTreeChange = (index, field, value) => {
+        const updatedTrees = [...formData.trees];
+        updatedTrees[index][field] = value;
+        updatedTrees[index].affected = updatedTrees[index].symptoms.length > 0;
+        setFormData(prev => ({ ...prev, trees: updatedTrees }));
+
+        // Update the affected trees count
+        updateAffectedTreesCount(updatedTrees);
+    };
+
+    useEffect(() => {
+        updateAffectedTreesCount(formData.trees);
+    }, [formData.trees]);
+
+    const updateAffectedTreesCount = (trees) => {
+        let affectedCount = 0;
+        let under2Count = 0;
+        let over2Count = 0;
+        const under2List = [];
+        const over2List = [];
+
+        trees.forEach(tree => {
+            if (tree.affected) {
+                affectedCount++;
+                if (tree.age === 2) {
+                    under2Count++;
+                    under2List.push(tree.treeNumber);
+                } else if (tree.age === 1) {
+                    over2Count++;
+                    over2List.push(tree.treeNumber);
+                }
+            }
+        });
+
+        setAffectedTreesCount(affectedCount);
+        setUnder2YearsAffected(under2Count);
+        setOver2YearsAffected(over2Count);
+        setAffectedTreesList({ under2Years: under2List, over2Years: over2List });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+
+        // Validate unique ID format before submission
+        if (!formData.uniqueId.startsWith('WD') || formData.uniqueId.length !== 8 || isNaN(Number(formData.uniqueId.slice(2)))) {
+            setUniqueIdError('Unique ID must start with WD and be followed by 6 digits.');
+            setSubmitting(false);
+            return;
+        } else {
+            setUniqueIdError(''); // Clear the error if it's valid
+        }
+
+        try {
+            await axios.post('/api/reports', formData);
+
+            // await fetchLastUniqueId();
+
+            // Show detailed submission toast
+            const incentive = affectedTreesCount * 3000;
+            const detailedMessage = `
+                Total Trees Affected: ${affectedTreesCount} (${((affectedTreesCount / formData.numberOfPlants) * 100).toFixed(2)}%)
+                Under 2 Years Affected: ${under2YearsAffected} (${((under2YearsAffected / formData.numberOfPlants) * 100).toFixed(2)}%)
+                Over 2 Years Affected: ${over2YearsAffected} (${((over2YearsAffected / formData.numberOfPlants) * 100).toFixed(2)}%)
+                Total Incentive: LKR ${incentive.toLocaleString()}
+            `;
+            toast.success(detailedMessage, {
+                position: "bottom-right",
+                autoClose: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+            });
+
+            // Reset form
+            setFormData(prev => ({
+                ...prev,
+                uniqueId: nextUniqueId,
+                fullName: '',
+                province: '',
+                district: '',
+                regionalDivision: '',
+                gramaNiladari: '',
+                addressLine1: '',
+                addressLine2: '',
+                landExtent: { value: 0, unit: 'Acres' },
+                numberOfPlants: 0,
+                trees: []
+                }));
+
+                // Update the next unique ID after successful submission
+                const lastNumber = parseInt(formData.uniqueId.slice(2), 10);
+                const nextId = `WD${String(lastNumber + 1).padStart(6, '0')}`;
+                setNextUniqueId(nextId);
+                
+                toast.success('Report submitted successfully!');
+                setFormData(prev => ({
+                    ...prev,
+                    uniqueId: nextId, // Update the form with the new ID
+                    fullName: '',
+                    province: '',
+                    district: '',
+                    regionalDivision: '',
+                    gramaNiladari: '',
+                    addressLine1: '',
+                    addressLine2: '',
+                    landExtent: { value: 0, unit: 'Acres' },
+                    numberOfPlants: 0,
+                    trees: []
+                }));
+        } catch (error) {
+            toast.error('Error submitting report');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const isSouthernProvince = formData.province === 'Southern Province';
+    const showRegionalDivisionDropdown = isSouthernProvince && ['Galle', 'Matara', 'Hambantota'].includes(formData.district);
+
+      // Pie chart data for affected trees
+      const pieChartData = [
+        { name: 'Under 2 Years Affected', value: under2YearsAffected },
+        { name: 'Over 2 Years Affected', value: over2YearsAffected },
+        { name: 'Healthy Trees', value: formData.numberOfPlants - affectedTreesCount }
+      ];
+
+      const COLORS = ['#FF6384', '#36A2EB', '#FFCE56'];
+
+
+
+return( {/* Affected Trees Summary */}
+                {affectedTreesCount > 0 && (
+                <Card className="mt-6">
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold">Detailed Analysis</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <h3 className="font-medium mb-2">Disease Affected Trees Breakdown</h3>
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <PieChart>
+                                        <Pie
+                                            data={pieChartData}
+                                            cx="50%"
+                                            cy="50%"
+                                            labelLine={false}
+                                            outerRadius={80}
+                                            fill="#8884d8"
+                                            dataKey="value"
+                                        >
+                                            {pieChartData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip />
+                                        <Legend />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            
+                            <div>
+                                <h3 className="font-medium mb-2">Detailed Breakdown</h3>
+                                <p>Total Trees Affected: {affectedTreesCount} 
+                                    ({((affectedTreesCount / formData.numberOfPlants) * 100).toFixed(2)}%)</p>
+                                
+                                <h4 className="mt-2 font-medium">Under 2 Years Affected Trees</h4>
+                                <p>Count: {under2YearsAffected} 
+                                    ({((under2YearsAffected / formData.numberOfPlants) * 100).toFixed(2)}%)</p>
+                                <p>Tree Numbers: {affectedTreesList.under2Years.join(', ') || 'None'}</p>
+                                
+                                <h4 className="mt-2 font-medium">Over 2 Years Affected Trees</h4>
+                                <p>Count: {over2YearsAffected} 
+                                    ({((over2YearsAffected / formData.numberOfPlants) * 100).toFixed(2)}%)</p>
+                                <p>Tree Numbers: {affectedTreesList.over2Years.join(', ') || 'None'}</p>
+                                
+                                <h4 className="mt-2 font-medium">Incentive Calculation</h4>
+                                <p>Incentive per Tree: LKR 3,000</p>
+                                <p>Total Incentive: LKR {(affectedTreesCount * 3000).toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+            )}
+);
+};
+
+export default CreateReport;
